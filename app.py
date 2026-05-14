@@ -5,19 +5,19 @@ import os
 # --- 1. THE STABLE BRAIN CONFIG ---
 try:
     if "GEMINI_API_KEY" in st.secrets:
-        # This line forces the app to use the stable v1 API instead of v1beta
-        genai.configure(api_key=st.secrets["GEMINI_API_KEY"], transport='rest')
+        # Forcing the stable API version to kill the 404/v1beta error
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         
-        # We are using the most stable model name possible here
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Switching to 'gemini-pro' for maximum compatibility
+        model = genai.GenerativeModel('gemini-pro')
     else:
-        st.error("API Key missing from Streamlit Secrets!")
+        st.error("API Key missing! Add 'GEMINI_API_KEY' to Streamlit Secrets.")
 except Exception as e:
     st.error(f"Brain Setup Error: {e}")
 
 # --- 2. THE DASHBOARD ---
 st.title("🕌 Master Islamic AI Factory")
-st.write("Forcing Stable API Connection...")
+st.write("Using Stable Model v1.0")
 
 if st.button("🚀 Generate Viral Content"):
     with st.spinner("AI is crafting the beauty..."):
@@ -26,22 +26,28 @@ if st.button("🚀 Generate Viral Content"):
             prompt = "Generate 1 Islamic Theme | 1 Short Powerful Quote. Format: THEME | QUOTE"
             response = model.generate_content(prompt)
             
-            parts = response.text.split("|")
-            theme = parts[0].strip() if len(parts) > 0 else "Faith"
-            quote = parts[1].strip() if len(parts) > 1 else response.text
+            # Use the text if the split fails
+            text_output = response.text
+            if "|" in text_output:
+                parts = text_output.split("|")
+                theme = parts[0].strip()
+                quote = parts[1].strip()
+            else:
+                theme = "Faith"
+                quote = text_output
             
-            # Show the Results
+            # Show the results
             st.success(f"**Theme:** {theme}")
             st.info(f"**Quote:** {quote}")
             
-            # Link to your Xender video file
+            # Your specific video file from Xender
             video_file = "beautybeautyofkabbahforyoupagefypblackeditsallahua_1778788911723.mp4"
             
             if not os.path.exists(video_file):
-                st.warning(f"⚠️ Video file '{video_file}' not found on GitHub!")
+                st.warning(f"⚠️ Video '{video_file}' not found on GitHub!")
             else:
                 st.write("✅ Kabbah Video Found!")
                 
         except Exception as e:
-            # If this still shows 404, it means the API key itself is restricted
+            # Captures exactly why the brain is still failing
             st.error(f"❌ AI Error: {e}")
