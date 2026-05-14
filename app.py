@@ -7,11 +7,11 @@ import datetime
 
 # --- 1. CORE BRAIN CONFIGURATION ---
 try:
-    # 2026 Model Standard: Use Gemini 3 Flash for stability and speed
-    MODEL_NAME = 'gemini-3-flash-preview' 
+    # Stable 2026 Model Name
+    MODEL_NAME = 'gemini-1.5-flash' 
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except Exception as e:
-    st.error("⚠️ Setup Error: API Key missing from Streamlit Secrets.")
+    st.error("⚠️ API Key missing! Check your Streamlit Secrets.")
 
 # --- 2. MASSIVE MEMORY SYSTEM ---
 MEMORY_FILE = "ai_brain_memory.json"
@@ -34,49 +34,44 @@ def save_to_memory(theme, quote):
     })
     if theme not in memory["used_themes"]:
         memory["used_themes"].append(theme)
-    # Persist the memory file
     with open(MEMORY_FILE, "w") as f:
         json.dump(memory, f)
 
 # --- 3. MASTER AI BRAIN LOGIC ---
 def generate_unique_content():
     memory = load_memory()
-    # Summarize last 20 themes to ensure the AI doesn't repeat
     recent_themes = ", ".join(memory["used_themes"][-20:])
     
     model = genai.GenerativeModel(MODEL_NAME)
     
-    # 2026 Prompt Engineering: Direct string for maximum stability
     master_prompt = (
-        f"You are a Master Islamic Content Creator with a massive memory bank. "
-        f"Do not repeat these themes: {recent_themes}. "
-        f"Generate: 1 Unique Theme, 1 Powerful Quote, and 1 Video Animation Prompt. "
-        f"FORMAT YOUR RESPONSE EXACTLY AS: THEME | QUOTE | PROMPT"
+        f"You are a Master Islamic Content Creator. "
+        f"History of themes used: {recent_themes}. "
+        f"Task: Generate a NEW unique theme, a short powerful quote, and a video prompt. "
+        f"Format the response exactly like this: THEME | QUOTE | PROMPT"
     )
     
     try:
-        # Standard stateless generation for reliability
-        response = model.[span_1](start_span)generate_content(master_prompt)[span_1](end_span)
+        # CLEAN SYNTAX: Fixed the line causing the error in your image
+        response = model.generate_content(master_prompt)
         parts = response.text.split("|")
         
         if len(parts) >= 3:
             return parts[0].strip(), parts[1].strip(), parts[2].strip()
-        return "Spiritual Wisdom", response.text.strip(), "Cinematic Islamic patterns"
+        return "Wisdom", response.text.strip(), "Cinematic lighting"
     except Exception as e:
-        st.error(f"Brain Error: {e}")
-        return "Faith", "Keep moving forward with trust in Allah.", "Golden hour mosque"
+        st.error(f"AI Brain Error: {e}")
+        return "Faith", "Trust the process.", "Soft morning light"
 
 # --- 4. VIDEO ENGINE ---
 def create_video_post(quote):
     if not os.path.exists("background.mp4"):
-        st.error("Please upload 'background.mp4' to your GitHub repo first.")
+        st.error("Missing 'background.mp4' file on GitHub!")
         return None
 
     try:
-        # Load and process the clip
         clip = VideoFileClip("background.mp4").subclipped(0, 8)
         
-        # Text Overlay with scannable formatting
         txt_clip = TextClip(
             text=quote,
             font_size=50,
@@ -85,34 +80,30 @@ def create_video_post(quote):
             size=(clip.w * 0.8, None)
         ).with_duration(8).with_position('center')
         
-        # Required AI Label for 2026 Platforms
         label = TextClip(text="✨ AI Generated", font_size=18, color='white').with_opacity(0.5).with_position(('right', 'top'))
 
         final = CompositeVideoClip([clip, txt_clip, label])
-        output_path = "ready_to_post.mp4"
+        output_path = "tiktok_video.mp4"
         final.write_videofile(output_path, fps=24, codec="libx264")
         return output_path
     except Exception as e:
-        st.error(f"Video Production Error: {e}")
+        st.error(f"Video Error: {e}")
         return None
 
-# --- 5. STREAMLIT INTERFACE ---
+# --- 5. INTERFACE ---
 st.set_page_config(page_title="Master Islamic AI", page_icon="🕌")
-st.title("🕌 Master Islamic AI Video Factory")
+st.title("🕌 Master Islamic AI Factory")
 
-# Display Memory Stats
 memory_data = load_memory()
 st.sidebar.title("🧠 AI Memory Bank")
-st.sidebar.metric("Total Posts", len(memory_data['history']))
-if memory_data["used_themes"]:
-    st.sidebar.write("**Recently Covered:**", memory_data["used_themes"][-5:])
+st.sidebar.metric("Posts Created", len(memory_data['history']))
 
-if st.button("🚀 Generate & Save to Memory"):
-    with st.spinner("AI is accessing memory and creating content..."):
+if st.button("🚀 Generate New Content & Memory"):
+    with st.spinner("AI is thinking..."):
         theme, quote, v_prompt = generate_unique_content()
         
-        st.success(f"**Current Theme:** {theme}")
-        st.info(f"**Generated Quote:** {quote}")
+        st.success(f"**New Theme:** {theme}")
+        st.info(f"**Quote:** {quote}")
         
         video_file = create_video_post(quote)
         
@@ -120,4 +111,4 @@ if st.button("🚀 Generate & Save to Memory"):
             save_to_memory(theme, quote)
             st.video(video_file)
             with open(video_file, "rb") as f:
-                st.download_button("📥 Download for TikTok", f, file_name="islamic_ai_post.mp4")
+                st.download_button("📥 Download for TikTok", f, file_name="islamic_post.mp4")
