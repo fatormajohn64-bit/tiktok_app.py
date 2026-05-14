@@ -2,42 +2,41 @@ import streamlit as st
 import google.generativeai as genai
 import os
 
-# --- 1. SECURE AI BRAIN CONFIGURATION ---
-# This version pulls the key from your 'Secrets' dashboard so it's never exposed in code
+# --- 1. SETUP ---
+# Pulling the key safely from your Secrets
 try:
     if "GEMINI_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        # Standard model name to fix the 404 error from your screenshot
+        # Using the absolute standard model name to stop 404 errors
         model = genai.GenerativeModel('gemini-1.5-flash')
     else:
-        st.error("API Key missing! Add 'GEMINI_API_KEY' to your Streamlit Secrets.")
+        st.error("Missing API Key in Streamlit Secrets!")
 except Exception as e:
-    st.error(f"Brain Connection Error: {e}")
+    st.error(f"Brain Error: {e}")
 
-# --- 2. THE DASHBOARD ---
+# --- 2. THE APP ---
 st.title("🕌 Master Islamic AI Factory")
-st.subheader("Automated Content Generation v3.0")
 
-if st.button("🚀 Run Automatic Sequence Now"):
-    with st.spinner("AI is crafting your post..."):
+if st.button("🚀 Generate New Content"):
+    with st.spinner("AI is working..."):
         try:
-            # Generate Viral Text
-            prompt = "Act as a Master Islamic Creator. Generate: 1 Theme | 1 Short Powerful Quote. Format: THEME | QUOTE"
+            # Generate the text
+            prompt = "Generate 1 Islamic Theme | 1 Short Power Quote. Format: THEME | QUOTE"
             response = model.generate_content(prompt)
-            
             parts = response.text.split("|")
-            theme = parts[0].strip() if len(parts) > 0 else "Faith"
-            quote = parts[1].strip() if len(parts) > 1 else response.text
             
-            # Display Results
+            theme = parts[0].strip()
+            quote = parts[1].strip()
+            
+            # Show the "Beauty"
             st.success(f"**Theme:** {theme}")
             st.info(f"**Quote:** {quote}")
             
-            # Check for video file (background.mp4)
+            # Check for the video from your Xender folder
             if not os.path.exists("background.mp4"):
-                st.warning("⚠️ 'background.mp4' missing! Upload your Xender video and rename it to 'background.mp4'.")
+                st.warning("⚠️ 'background.mp4' not found on GitHub. Video skipped, but text is ready!")
             else:
-                st.write("✅ Video file found!")
+                st.write("✅ Video file found and ready for processing.")
                 
         except Exception as e:
-            st.error(f"❌ AI Brain Error: {e}")
+            st.error(f"❌ Connection Error: {e}")
