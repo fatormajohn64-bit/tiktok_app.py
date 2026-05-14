@@ -1,6 +1,7 @@
-streamlit
 moviepy
 google-generativeai
 requests
 python-dotenv
+streamlit
+
 
