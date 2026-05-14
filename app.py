@@ -6,8 +6,9 @@ import os
 import datetime
 
 # --- 1. BRAIN CONFIGURATION ---
-# We try the most stable 2026 model name
-STABLE_MODEL = 'gemini-1.5-flash'
+# Using the current, active models for 2026 to avoid 404 errors
+STABLE_MODEL = 'gemini-2.5-flash'
+BACKUP_MODEL = 'gemini-3-flash'
 
 try:
     api_key = st.secrets.get("GEMINI_API_KEY")
@@ -43,17 +44,16 @@ def generate_unique_content():
     memory = load_memory()
     recent_themes = ", ".join(memory["used_themes"][-20:])
     
-    # Try the most stable model first
+    master_prompt = (
+        f"You are a Master Islamic Content Creator. "
+        f"Don't repeat these themes: {recent_themes}. "
+        f"Provide: 1 Theme, 1 Short Quote, 1 Video Prompt. "
+        f"Format: THEME | QUOTE | PROMPT"
+    )
+    
+    # Try the primary 2.5 Flash model first
     try:
         model = genai.GenerativeModel(STABLE_MODEL)
-        
-        master_prompt = (
-            f"You are a Master Islamic Content Creator. "
-            f"Don't repeat these themes: {recent_themes}. "
-            f"Provide: 1 Theme, 1 Short Quote, 1 Video Prompt. "
-            f"Format: THEME | QUOTE | PROMPT"
-        )
-        
         response = model.generate_content(master_prompt)
         parts = response.text.split("|")
         
@@ -62,14 +62,14 @@ def generate_unique_content():
         return "Wisdom", response.text.strip(), "Cinematic lighting"
         
     except Exception as e:
-        # If the specific model fails (like the 404 in your image), we try the backup 'gemini-pro'
-        st.warning(f"🔄 Switching to backup brain due to error: {e}")
+        # If it fails, fallback to the newer Gemini 3 Flash model
+        st.warning(f"🔄 Primary brain busy, switching to backup (Gemini 3) due to: {e}")
         try:
-            model = genai.GenerativeModel('gemini-pro')
+            model = genai.GenerativeModel(BACKUP_MODEL)
             response = model.generate_content("Give me a short Islamic quote about patience.")
             return "Patience", response.text.strip(), "Soft nature lighting"
         except Exception as e2:
-            st.error(f"🧠 AI Brain Error: {e2}")
+            st.error(f"🧠 Critical AI Brain Error: {e2}")
             return None, None, None
 
 # --- 4. VIDEO ENGINE ---
