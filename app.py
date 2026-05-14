@@ -3,62 +3,63 @@ import google.generativeai as genai
 from moviepy import VideoFileClip, TextClip, CompositeVideoClip
 import os
 
-# --- 1. AI BRAIN SETUP ---
-# This part is now working according to your latest screenshot!
+# 1. Setup Brain (This part is already working for you!)
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=API_KEY)
     model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
-    st.error(f"Brain Connection Error: {e}")
+    st.error(f"Brain Error: {e}")
 
-# --- 2. VIDEO GENERATOR ---
+# 2. Setup Video Factory Logic
 def create_islamic_video(quote_text):
-    # Check if the file exists before trying to open it
+    # This checks for your Xender video renamed to background.mp4
     if not os.path.exists("background.mp4"):
-        return None, "File 'background.mp4' not found on GitHub."
+        return None, "Error: background.mp4 is missing from GitHub."
     
     try:
-        # Load your Kabbah video
+        # Load the video and cut to 8 seconds
         clip = VideoFileClip("background.mp4").subclipped(0, 8)
         
-        # Create text overlay
+        # Create the text overlay
         txt_clip = TextClip(
             text=quote_text,
-            font_size=40,
+            font_size=45,
             color='white',
             method='caption',
-            size=(clip.w * 0.8, None)
+            size=(clip.w * 0.8, None),
+            text_align='center'
         ).with_duration(8).with_position('center')
         
-        # Combine and save
+        # Combine text and video
         final_video = CompositeVideoClip([clip, txt_clip])
-        output_path = "viral_post.mp4"
-        final_video.write_videofile(output_path, fps=24, codec="libx264")
-        return output_path, "Success"
+        
+        # Save the file
+        output_name = "viral_islamic_post.mp4"
+        final_video.write_videofile(output_name, fps=24, codec="libx264")
+        return output_name, "Success"
     except Exception as e:
         return None, f"Video Processing Error: {str(e)}"
 
-# --- 3. THE INTERFACE ---
+# 3. The Dashboard UI
 st.title("🕌 Master Islamic AI Factory")
 
-if st.button("🚀 Generate Post Now"):
-    with st.spinner("AI is crafting your content..."):
-        # Generate Text Content
+if st.button("🚀 Generate Viral Post"):
+    with st.spinner("AI is thinking..."):
+        # Generate Content
         prompt = "Generate 1 Islamic Theme | 1 Short Powerful Quote. Format: THEME | QUOTE"
         response = model.generate_content(prompt)
         theme, quote = [x.strip() for x in response.text.split("|")[:2]]
         
-        # Display Text (Even if video fails)
         st.success(f"**Theme:** {theme}")
         st.info(f"**Quote:** {quote}")
         
-        # Try to make the video
-        video_file, message = create_islamic_video(quote)
+        # Build the video
+        video_path, message = create_islamic_video(quote)
         
-        if video_file:
-            st.video(video_file)
-            st.write("✅ Video Created Successfully!")
+        if video_path:
+            st.video(video_path)
+            with open(video_path, "rb") as f:
+                st.download_button("📥 Download Video", f, file_name="islamic_post.mp4")
         else:
-            st.warning(f"⚠️ Video Skipped: {message}")
-            st.write("👉 You can still use the Quote above for a manual post!")
+            st.error(message)
