@@ -24,8 +24,8 @@ try:
 
     genai.configure(api_key=GEMINI_API_KEY)
 
-    # FIXED MODEL
-    model = genai.GenerativeModel('gemini-pro')
+    # UPDATED WORKING MODEL
+    model = genai.GenerativeModel('gemini-1.5-flash')
 
 except Exception as e:
     st.error(f"Gemini setup failed: {e}")
@@ -181,4 +181,4 @@ if st.button("Generate Evening Image"):
 # FOOTER
 # ======================================
 st.markdown("---")
-st.caption("Built with Streamlit + Gemini Pro + MoviePy + Pillow")
+st.caption("Built with Streamlit + Gemini Flash + MoviePy + Pillow")
