@@ -1,5 +1,11 @@
-google-generativeai
 streamlit
+google-generativeai
 moviepy
+Pillow
+imageio
+imageio-ffmpeg
+numpy
+decorator
+proglog
+tqdm
 requests
-python-dotenv
