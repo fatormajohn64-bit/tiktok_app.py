@@ -1,163 +1,471 @@
+# =========================================================
+# ISLAMIC VIDEO CONTENT FACTORY PRO
+# GROQ + LLAMA 3.3 70B + STREAMLIT + MOVIEPY
+# =========================================================
+
 import os
+import json
+import time
+import hashlib
+import tempfile
 import streamlit as st
+import imageio_ffmpeg
+
 from groq import Groq
 from gtts import gTTS
-from moviepy.editor import VideoFileClip, AudioFileClip, ColorClip
 
-# --- PAGE SETUP ---
-st.set_page_config(page_title="Islamic Video Content Factory PRO", page_icon="🌙", layout="wide")
-st.title("🌙 Islamic Video Content Factory PRO")
-st.caption("Generate unlimited cinematic Islamic videos using Groq & MoviePy.")
+from moviepy.editor import (
+    VideoFileClip,
+    AudioFileClip,
+    CompositeVideoClip,
+    ColorClip
+)
 
-# --- API KEY INITIALIZATION ---
-# Safely fetches GROQ_API_KEY from your Streamlit Secrets Management dashboard
-API_KEY = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
+# =========================================================
+# FFMPEG FIX
+# =========================================================
 
-if not API_KEY:
-    st.error("❌ KEY ERROR: 'GROQ_API_KEY' is missing from your Streamlit Secrets.")
-    st.info("Please make sure you have GROQ_API_KEY = 'your_gsk_key' in your Streamlit dashboard secrets.")
-    st.stop()
+os.environ["IMAGEIO_FFMPEG_EXE"] = imageio_ffmpeg.get_ffmpeg_exe()
 
-# Initialize the Groq Engine
+# =========================================================
+# STREAMLIT PAGE CONFIG
+# =========================================================
+
+st.set_page_config(
+    page_title="Islamic Video Content Factory PRO",
+    layout="wide"
+)
+
+# =========================================================
+# CUSTOM UI
+# =========================================================
+
+st.markdown("""
+<style>
+
+.stApp {
+    background-color: #06110b;
+    color: white;
+}
+
+h1, h2, h3 {
+    color: #00d084;
+}
+
+.stButton>button {
+    background-color: #00d084;
+    color: black;
+    border-radius: 12px;
+    font-weight: bold;
+}
+
+section[data-testid="stSidebar"] {
+    background-color: #08140d;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# TITLE
+# =========================================================
+
+st.title("☪ Islamic Video Content Factory PRO")
+
+st.write(
+    "Generate cinematic Islamic AI videos powered by Groq + Llama 3.3 70B."
+)
+
+# =========================================================
+# GROQ API SETUP
+# =========================================================
+
 try:
-    client = Groq(api_key=API_KEY)
-    st.success("✅ Connected Perfectly to Groq Network")
+
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+
+    client = Groq(
+        api_key=GROQ_API_KEY
+    )
+
+    st.success("Groq API Connected Successfully")
+
 except Exception as e:
-    st.error(f"❌ Failed to connect to Groq: {e}")
+
+    st.error(f"Groq Connection Failed: {e}")
     st.stop()
 
-# --- SIDEBAR CONTROLS ---
-st.sidebar.header("🎬 Video Controls")
-video_format = st.sidebar.selectbox("Video Format", ["TikTok / Shorts (Vertical 9:16)", "YouTube (Horizontal 16:9)"])
-chosen_length = st.sidebar.selectbox("Target Video Length", ["30 Seconds", "1 Minute", "2 Minutes"])
-content_type = st.sidebar.selectbox("Content Style", ["Motivational Reminder", "Historical Story / Seerah", "Quranic Reflection"])
+# =========================================================
+# MASSIVE MEMORY SYSTEM
+# =========================================================
 
-# Map lengths to seconds
-duration_map = {"30 Seconds": 30, "1 Minute": 60, "2 Minutes": 120}
-target_duration = duration_map[chosen_length]
+MEMORY_FILE = "memory.json"
 
-topic = st.text_input("Enter Video Topic:", placeholder="e.g., Patience in Trials (Sabr)")
+DEFAULT_MEMORY = {
+    "used_hashes": [],
+    "used_topics": []
+}
 
-if st.button("🚀 Generate Full Video"):
-    if not topic:
-        st.warning("⚠️ Please provide a topic first.")
-    else:
-        st.info("Step 1: Compiling Narration Script via Groq...")
-        
-        system_instruction = (
-            "You are an elite Islamic speaker. Generate a short, deeply moving narration script. "
-            "IMPORTANT: Output ONLY the spoken narration text. Do not include scene labels, brackets, descriptions, or director notes."
-        )
+if not os.path.exists(MEMORY_FILE):
 
-        user_prompt = f"Write a powerful narration script about '{topic}' for a {chosen_length} {content_type} video."
+    with open(MEMORY_FILE, "w") as f:
+
+        json.dump(DEFAULT_MEMORY, f)
+
+def load_memory():
+
+    with open(MEMORY_FILE, "r") as f:
+
+        return json.load(f)
+
+def save_memory(data):
+
+    with open(MEMORY_FILE, "w") as f:
+
+        json.dump(data, f, indent=2)
+
+memory = load_memory()
+
+# =========================================================
+# SIDEBAR CONTROLS
+# =========================================================
+
+st.sidebar.title("Video Settings")
+
+video_format = st.sidebar.selectbox(
+    "Video Format",
+    [
+        "TikTok / Shorts / Reels",
+        "YouTube Long-form"
+    ]
+)
+
+length_option = st.sidebar.selectbox(
+    "Target Video Length",
+    [
+        "30 Seconds",
+        "1 Minute",
+        "2 Minutes",
+        "5 Minutes",
+        "10 Minutes"
+    ]
+)
+
+theme = st.sidebar.selectbox(
+    "Content Theme",
+    [
+        "Motivational Reminder",
+        "Historical Story / Seerah",
+        "Quranic Reflection",
+        "Daily Duas & Supplications",
+        "Heart-Trembling Recitation Context"
+    ]
+)
+
+topic = st.sidebar.text_input(
+    "Video Topic",
+    placeholder="Example: Tawakkul in Islam"
+)
+
+# =========================================================
+# VIDEO DIMENSIONS
+# =========================================================
+
+if video_format == "TikTok / Shorts / Reels":
+
+    VIDEO_WIDTH = 720
+    VIDEO_HEIGHT = 1280
+
+else:
+
+    VIDEO_WIDTH = 1280
+    VIDEO_HEIGHT = 720
+
+# =========================================================
+# VIDEO DURATION MAP
+# =========================================================
+
+duration_map = {
+
+    "30 Seconds": 30,
+    "1 Minute": 60,
+    "2 Minutes": 120,
+    "5 Minutes": 300,
+    "10 Minutes": 600
+
+}
+
+TARGET_DURATION = duration_map[length_option]
+
+# =========================================================
+# SYSTEM PROMPT
+# =========================================================
+
+SYSTEM_PROMPT = f"""
+
+You are an elite Islamic scholar, historian,
+cinematic storyteller, and motivational speaker.
+
+You possess deep knowledge of:
+
+- Quran Tafsir
+- Authentic Hadith
+- Sahih Bukhari
+- Sahih Muslim
+- Islamic Seerah
+- Islamic Golden Age
+- Companions of the Prophet
+- Spiritual purification
+- Emotional Islamic reminders
+
+CRITICAL RULES:
+
+- NEVER repeat scripts
+- NEVER reuse standard hooks
+- NEVER duplicate paragraphs
+- Use highly diverse vocabulary
+- Use different storytelling structures
+- Use emotional cinematic pacing
+- Generate highly unique content every time
+
+STRICT OUTPUT RULE:
+
+Return ONLY direct spoken narration text.
+
+DO NOT include:
+- Scene numbers
+- Director notes
+- Bullet points
+- Labels
+- Brackets
+- Captions
+
+Write naturally for text-to-speech narration.
+
+"""
+
+# =========================================================
+# SCRIPT GENERATION
+# =========================================================
+
+def generate_script():
+
+    user_prompt = f"""
+
+    Topic:
+    {topic}
+
+    Theme:
+    {theme}
+
+    Video Length:
+    {length_option}
+
+    Requirements:
+
+    - Emotional narration
+    - Cinematic storytelling
+    - Authentic Islamic wisdom
+    - Viral social media pacing
+    - Powerful hooks
+    - Deep reflections
+
+    Avoid repeating:
+    {memory['used_topics'][-100:]}
+
+    """
+
+    response = client.chat.completions.create(
+
+        model="llama-3.3-70b-versatile",
+
+        messages=[
+
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+
+            {
+                "role": "user",
+                "content": user_prompt
+            }
+
+        ],
+
+        temperature=1.1,
+        max_tokens=4000
+
+    )
+
+    return response.choices[0].message.content
+
+# =========================================================
+# HASH SYSTEM
+# =========================================================
+
+def save_hash(text):
+
+    h = hashlib.md5(
+        text.encode()
+    ).hexdigest()
+
+    memory["used_hashes"].append(h)
+
+    save_memory(memory)
+
+# =========================================================
+# TEXT TO SPEECH
+# =========================================================
+
+def create_voiceover(script_text):
+
+    with tempfile.NamedTemporaryFile(
+        suffix=".mp3",
+        delete=False,
+        dir="/tmp"
+    ) as temp_audio:
+
+        audio_path = temp_audio.name
+
+    tts = gTTS(
+        text=script_text,
+        lang="en"
+    )
+
+    tts.save(audio_path)
+
+    return audio_path
+
+# =========================================================
+# VIDEO CREATION
+# =========================================================
+
+def create_video(audio_path):
+
+    with tempfile.NamedTemporaryFile(
+        suffix=".mp4",
+        delete=False,
+        dir="/tmp"
+    ) as temp_video:
+
+        output_path = temp_video.name
+
+    audio_clip = AudioFileClip(audio_path)
+
+    # -----------------------------------------------------
+    # BACKGROUND VIDEO
+    # -----------------------------------------------------
+
+    if os.path.exists("background.mp4"):
 
         try:
-            # Using llama-3.3-70b-versatile for high quality reasoning
-            completion = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.7,
-            )
-            script_text = completion.choices[0].message.content
-            
-            st.subheader("📋 Narration Script:")
-            st.write(script_text)
-            
-        except Exception as e:
-            st.error(f"❌ Groq Script compilation failed: {e}")
-            st.stop()
 
-        # --- STEP 2: TEXT-TO-SPEECH AUDIO ---
-        current_dir = os.getcwd()
-        audio_temp = os.path.join(current_dir, "voiceover.mp3")
-        output_video_path = os.path.join(current_dir, "final_output.mp4")
+            background = VideoFileClip(
+                "background.mp4"
+            ).subclip(0, TARGET_DURATION)
 
-        with st.spinner("Step 2: Synthesizing Voiceover..."):
-            try:
-                tts = gTTS(text=script_text, lang='en', slow=False)
-                tts.save(audio_temp)
-                
-                if not os.path.exists(audio_temp):
-                    st.error("❌ Failed to create the audio file container.")
-                    st.stop()
-            except Exception as e:
-                st.error(f"❌ Voice synthesis failed: {e}")
-                st.stop()
+        except:
 
-        # --- STEP 3: VIDEO RENDERING ENGINE WITH FALLBACK ---
-        with st.spinner("Step 3: Rendering Video & Overlaying Audio..."):
-            video_clip = None
-            audio_clip = None
-            final_clip = None
-            VIDEO_PATH = "background.mp4"
-            
-            # Setup layout dimensions based on choices
-            if "Vertical" in video_format:
-                dimensions = (720, 1280)
-            else:
-                dimensions = (1280, 720)
+            background = None
 
-            try:
-                # Attempt to open custom background clip
-                if os.path.exists(VIDEO_PATH) and os.path.getsize(VIDEO_PATH) > 0:
-                    try:
-                        video_clip = VideoFileClip(VIDEO_PATH)
-                        if video_clip.duration < target_duration:
-                            target_duration = video_clip.duration
-                        video_clip = video_clip.subclip(0, target_duration)
-                        st.info("🎥 Merging your custom background.mp4...")
-                    except Exception as video_err:
-                        st.warning("⚠️ Background video encoding issue. Falling back to clean emerald canvas backdrop...")
-                        video_clip = ColorClip(size=dimensions, color=(20, 50, 30), duration=target_duration)
-                else:
-                    st.warning("⚠️ 'background.mp4' file missing. Generating canvas fallback frame...")
-                    video_clip = ColorClip(size=dimensions, color=(20, 50, 30), duration=target_duration)
-                
-                # Load the generated AI audio track
-                audio_clip = AudioFileClip(audio_temp)
-                if audio_clip.duration > target_duration:
-                    audio_clip = audio_clip.subclip(0, target_duration)
-                
-                # Bind components together
-                final_clip = video_clip.set_audio(audio_clip)
-                
-                # Render out full format MP4 file container
-                final_clip.write_videofile(
-                    output_video_path, 
-                    codec="libx264", 
-                    audio_codec="aac", 
-                    fps=24,
-                    logger=None
-                )
-                
-                st.success("✨ Video Fully Compiled!")
-                
-                # Render video player preview
-                with open(output_video_path, "rb") as file:
-                    st.video(file.read())
-                    
-                # Download Action Button
-                with open(output_video_path, "rb") as file:
-                    st.download_button(
-                        label="📥 Download Video File",
-                        data=file,
-                        file_name=f"islamic_video_{topic.lower().replace(' ', '_')}.mp4",
-                        mime="video/mp4"
-                    )
-                    
-            except Exception as e:
-                st.error(f"❌ Video rendering failed: {e}")
-            finally:
-                # Safe garbage cleanup to free server memory
-                if video_clip: video_clip.close()
-                if audio_clip: audio_clip.close()
-                if final_clip: final_clip.close()
-                
-                if os.path.exists(audio_temp):
-                    try:
-                        os.remove(audio_temp)
-                    except:
-                        pass
+    else:
+
+        background = None
+
+    # -----------------------------------------------------
+    # FALLBACK COLOR SYSTEM
+    # -----------------------------------------------------
+
+    if background is None:
+
+        if theme == "Historical Story / Seerah":
+
+            bg_color = (15, 10, 30)
+
+        elif theme == "Quranic Reflection":
+
+            bg_color = (5, 40, 25)
+
+        else:
+
+            bg_color = (5, 25, 15)
+
+        background = ColorClip(
+
+            size=(VIDEO_WIDTH, VIDEO_HEIGHT),
+
+            color=bg_color,
+
+            duration=TARGET_DURATION
+
+        )
+
+    # -----------------------------------------------------
+    # COMBINE AUDIO + VIDEO
+    # -----------------------------------------------------
+
+    final_video = CompositeVideoClip([
+        background
+    ])
+
+    final_video = final_video.set_audio(audio_clip)
+
+    # -----------------------------------------------------
+    # EXPORT
+    # -----------------------------------------------------
+
+    final_video.write_videofile(
+
+        output_path,
+
+        fps=24,
+
+        codec="libx264",
+
+        audio_codec="aac",
+
+        bitrate="5000k"
+
+    )
+
+    return output_path
+
+# =========================================================
+# DOWNLOAD SCRIPT
+# =========================================================
+
+def script_download(script):
+
+    return script.encode("utf-8")
+
+# =========================================================
+# GENERATE BUTTON
+# =========================================================
+
+if st.button("Generate Islamic Cinematic Video"):
+
+    try:
+
+        with st.status(
+            "Generating Islamic AI Content...",
+            expanded=True
+        ) as status:
+
+            # -------------------------------------------------
+            # STEP 1
+            # -------------------------------------------------
+
+            st.write("Generating narration script...")
+
+            script = generate_script()
+
+            save_hash(script)
+
+            memory["used_topics"].append(topic)
+
+            save_memory(memory)
+
+            # -------------------------------------------------
+            # STEP 2
+            # -------------------------------------------------
