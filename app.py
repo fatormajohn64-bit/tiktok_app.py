@@ -1,151 +1,132 @@
-# app.py
-# Streamlit + Google Gemini (Stable v1 Compatible)
-# Fixes:
-# - 404 Model Not Found
-# - Unexpected module name format
-# - Incorrect beta model usage
-# - Better error handling
-# - Proper background.mp4 detection
-
-import os
 import streamlit as st
 import google.generativeai as genai
-from google.api_core.exceptions import GoogleAPIError
 
-# =========================
-# PAGE CONFIG
-# =========================
-st.set_page_config(
-    page_title="AI Video Production Line",
-    page_icon="🎬",
-    layout="centered"
-)
-
-st.title("🎬 Islamic AI Video Production Line")
-
-# =========================
-# API KEY
-# =========================
-# Add your API key in Streamlit secrets:
-# GEMINI_API_KEY="your_key_here"
-
-API_KEY = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
-
-if not API_KEY:
-    st.error("❌ Gemini API key not found.")
-    st.stop()
-
-# =========================
+# =========================================================
 # CONFIGURE GEMINI
-# =========================
+# =========================================================
+
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+
+genai.configure(api_key=GEMINI_API_KEY)
+
+# =========================================================
+# AUTO DISCOVER AVAILABLE MODELS
+# =========================================================
+
+available_models = []
+
 try:
-    genai.configure(api_key=API_KEY)
+    models = genai.list_models()
+
+    for m in models:
+        model_name = m.name
+
+        # Only include models that support generateContent
+        if "generateContent" in m.supported_generation_methods:
+            available_models.append(model_name)
+
+    print("Available Models:")
+    for m in available_models:
+        print("-", m)
+
 except Exception as e:
-    st.error(f"❌ Failed to configure Gemini API:\n{e}")
+    st.error(f"Failed to list Gemini models: {e}")
     st.stop()
 
-# =========================
-# MODEL SELECTION
-# IMPORTANT:
-# Use ONLY lowercase:
-# - gemini-1.5-flash
-# - gemini-1.5-pro
-# =========================
-MODEL_NAME = "gemini-1.5-flash-8b"
+# =========================================================
+# FIND BEST FLASH MODEL
+# =========================================================
 
-# Create model
-try:
-    model = genai.GenerativeModel(MODEL_NAME)
-except Exception as e:
-    st.error(f"❌ Failed to initialize model:\n{e}")
-    st.stop()
+selected_model = None
 
-# =========================
-# VIDEO FILE CHECK
-# =========================
-VIDEO_PATH = "background.mp4"
+# Priority order
+preferred_keywords = [
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "flash"
+]
 
-if os.path.exists(VIDEO_PATH):
-    st.success("✅ background.mp4 detected")
+for keyword in preferred_keywords:
+    for model_name in available_models:
 
-    # Optional preview
-    with open(VIDEO_PATH, "rb") as video_file:
-        st.video(video_file.read())
-else:
-    st.warning(
-        "⚠️ background.mp4 not found.\n"
-        "Place the file in the same folder as app.py"
+        clean_name = model_name.lower()
+
+        if keyword in clean_name:
+            selected_model = model_name
+            break
+
+    if selected_model:
+        break
+
+# =========================================================
+# FAIL SAFELY
+# =========================================================
+
+if not selected_model:
+
+    st.error(
+        f"""
+No compatible Gemini Flash model found.
+
+Available models:
+
+{available_models}
+"""
     )
 
-# =========================
-# USER INPUT
-# =========================
-topic = st.text_input(
-    "Enter Islamic video topic:",
-    placeholder="Mercy of Allah"
-)
+    st.stop()
 
-# =========================
-# START BUTTON
-# =========================
-if st.button("🚀 Start Production Line"):
+# =========================================================
+# INITIALIZE MODEL
+# =========================================================
 
-    if not topic:
-        st.warning("Please enter a topic.")
-        st.stop()
+try:
+    model = genai.GenerativeModel(selected_model)
 
-    if not os.path.exists(VIDEO_PATH):
-        st.error("❌ background.mp4 is missing.")
-        st.stop()
+    st.success(f"Using Gemini model: {selected_model}")
 
-    prompt = f"""
-    Create a short Islamic TikTok video script about:
-    {topic}
+except Exception as e:
 
-    Requirements:
-    - Emotional hook
-    - Quran verse
-    - Short narration
-    - Viral TikTok style
-    - Ending reminder
-    """
+    st.error(
+        f"""
+Failed to initialize Gemini model.
 
-    st.info("Generating content with Gemini...")
+Error:
+{e}
 
-    # =========================
-    # GENERATE CONTENT
-    # =========================
-    try:
-        response = model.generate_content(prompt)
+Available models:
+{available_models}
+"""
+    )
 
-        # Safe output handling
-        generated_text = ""
+    st.stop()
 
-        if hasattr(response, "text"):
-            generated_text = response.text
-        elif response.candidates:
-            generated_text = response.candidates[0].content.parts[0].text
-        else:
-            generated_text = "No response generated."
+# =========================================================
+# TEST PROMPT
+# =========================================================
 
-        st.success("✅ Script Generated")
-        st.text_area(
-            "Generated Script",
-            generated_text,
-            height=300
-        )
+try:
 
-    # =========================
-    # API ERRORS
-    # =========================
-    except GoogleAPIError as api_error:
-        st.error(f"❌ Google API Error:\n{api_error}")
+    response = model.generate_content(
+        "Write a short Islamic motivational quote."
+    )
 
-    except Exception as e:
-        st.error(f"❌ Unexpected Error:\n{e}")
+    st.write("Gemini Response:")
+    st.write(response.text)
 
-# =========================
-# FOOTER
-# =========================
-st.markdown("---")
-st.caption("Powered by Streamlit + Gemini 1.5 Flash")
+except Exception as e:
+
+    st.error(
+        f"""
+Gemini generation failed.
+
+Error:
+{e}
+
+Current model:
+{selected_model}
+
+Available models:
+{available_models}
+"""
+    )
