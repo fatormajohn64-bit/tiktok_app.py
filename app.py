@@ -11,7 +11,7 @@ def init_brain():
         if "GEMINI_API_KEY" in st.secrets:
             genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
             # MUST use gemini-1.5-flash for newly generated API keys
-            return genai.GenerativeModel("gemini-pro")
+            return genai.GenerativeModel("Gemini-pro")
         else:
             st.error("Missing API Key in Secrets!")
             return None
