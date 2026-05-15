@@ -1,3 +1,4 @@
 streamlit
 google-generativeai
+moviepy==2.0.0.dev2
 Pillow
