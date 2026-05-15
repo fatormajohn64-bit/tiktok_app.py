@@ -1,3 +1,6 @@
+libjpeg-dev
+zlib1g-dev
+libpng-dev
 app.py
 requirements.txt
 packages.txt
