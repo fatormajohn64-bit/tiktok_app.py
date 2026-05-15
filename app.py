@@ -25,7 +25,7 @@ try:
     genai.configure(api_key=GEMINI_API_KEY)
 
     # UPDATED WORKING MODEL
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel("gemini-2.0-flash")
 
 except Exception as e:
     st.error(f"Gemini setup failed: {e}")
