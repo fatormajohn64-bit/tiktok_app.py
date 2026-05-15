@@ -1,205 +1,148 @@
-# =========================================================
-# IMPORTS
-# =========================================================
-import os
-import streamlit as st
-import google.generativeai as genai
-
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 from moviepy.editor import (
-    VideoFileClip,
-    AudioFileClip,
-    TextClip,
+    ColorClip,
     CompositeVideoClip,
+    ImageClip,
+    AudioFileClip
 )
 
 # =========================================================
-# PAGE CONFIG
-# =========================================================
-st.set_page_config(
-    page_title="Islamic AI Video Factory",
-    page_icon="🎬",
-    layout="wide"
-)
-
-st.title("🎬 Islamic AI Video Factory")
-st.caption("Automated TikTok Video Generator using Gemini AI")
-
-# =========================================================
-# SECRETS & GEMINI CONFIG
+# CREATE VIDEO FUNCTION
 # =========================================================
 
-# Safely load API key from Streamlit Cloud Secrets
-try:
-    # Add this inside Streamlit Cloud -> Settings -> Secrets
-    # GEMINI_API_KEY = "your-real-api-key"
-    API_KEY = st.secrets["GEMINI_API_KEY"]
+def create_video(caption_text, output_filename):
 
-    # Correct Gemini configuration
-    genai.configure(api_key=API_KEY)
+    # -----------------------------
+    # VIDEO SETTINGS
+    # -----------------------------
 
-except Exception as e:
-    st.error(
-        "❌ API Key not found in Streamlit Secrets.\n\n"
-        "Go to:\n"
-        "Streamlit Dashboard → App Settings → Secrets\n\n"
-        "Then add:\n"
-        'GEMINI_API_KEY = "your-api-key"'
+    VIDEO_WIDTH = 1080
+    VIDEO_HEIGHT = 1920
+    DURATION = 15
+
+    # -----------------------------
+    # BACKGROUND VIDEO
+    # -----------------------------
+
+    background = ColorClip(
+        size=(VIDEO_WIDTH, VIDEO_HEIGHT),
+        color=(15, 15, 15),
+        duration=DURATION
     )
-    st.stop()
 
-# =========================================================
-# LOAD GEMINI MODEL
-# =========================================================
+    # -----------------------------
+    # CREATE PIL IMAGE
+    # -----------------------------
 
-try:
-    # Stable working model
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    img_width = 1000
+    img_height = 400
 
-except Exception as e:
-    st.error(f"❌ Failed to load Gemini model:\n{e}")
-    st.stop()
+    pil_img = Image.new(
+        "RGBA",
+        (img_width, img_height),
+        (0, 0, 0, 0)
+    )
 
-# =========================================================
-# VIDEO SCRIPT GENERATOR
-# =========================================================
+    draw = ImageDraw.Draw(pil_img)
 
-def generate_script(topic):
-    prompt = f"""
-    Create a short viral Islamic TikTok video script about:
-    {topic}
-
-    Requirements:
-    - Emotional hook in first 3 seconds
-    - Short and powerful
-    - Easy narration
-    - Maximum 120 words
-    - Include Quran/Hadith if relevant
-    - End with engagement CTA
-    """
+    # -----------------------------
+    # FONT
+    # -----------------------------
 
     try:
-        response = model.generate_content(prompt)
-        return response.text
+        font = ImageFont.truetype(
+            "DejaVuSans-Bold.ttf",
+            80
+        )
 
-    except Exception as e:
-        return f"Error generating script: {e}"
+    except:
+        font = ImageFont.load_default()
 
-# =========================================================
-# UI INPUT
-# =========================================================
+    # -----------------------------
+    # TEXT SIZE
+    # -----------------------------
 
-topic = st.text_input(
-    "Enter Video Topic",
-    placeholder="Example: Trust Allah during hardship"
-)
+    bbox = draw.textbbox(
+        (0, 0),
+        caption_text,
+        font=font
+    )
 
-# =========================================================
-# GENERATE BUTTON
-# =========================================================
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
 
-if st.button("🚀 Generate Viral Script"):
+    x = (img_width - text_width) // 2
+    y = (img_height - text_height) // 2
 
-    if not topic:
-        st.warning("Please enter a topic.")
-    else:
+    # -----------------------------
+    # DRAW TEXT SHADOW
+    # -----------------------------
 
-        with st.spinner("Generating script with Gemini AI..."):
-            script = generate_script(topic)
+    shadow_offset = 4
 
-        st.success("✅ Script Generated")
+    draw.text(
+        (x + shadow_offset, y + shadow_offset),
+        caption_text,
+        font=font,
+        fill=(0, 0, 0, 180)
+    )
 
-        st.subheader("Generated Script")
-        st.write(script)
+    # -----------------------------
+    # DRAW MAIN TEXT
+    # -----------------------------
 
-# =========================================================
-# VIDEO CREATION SECTION
-# =========================================================
+    draw.text(
+        (x, y),
+        caption_text,
+        font=font,
+        fill=(255, 215, 0, 255)
+    )
 
-st.divider()
-st.subheader("🎥 Video Rendering")
+    # -----------------------------
+    # CONVERT PIL -> NUMPY
+    # -----------------------------
 
-uploaded_video = st.file_uploader(
-    "Upload Background Video",
-    type=["mp4", "mov", "avi"]
-)
+    img_array = np.array(pil_img)
 
-uploaded_audio = st.file_uploader(
-    "Upload Narration Audio",
-    type=["mp3", "wav"]
-)
+    # -----------------------------
+    # CREATE MOVIEPY IMAGECLIP
+    # -----------------------------
 
-caption_text = st.text_area(
-    "Video Caption Text",
-    placeholder="Paste generated script here..."
-)
+    text_clip = (
+        ImageClip(img_array)
+        .set_duration(DURATION)
+        .set_position(("center", "center"))
+    )
 
-# =========================================================
-# CREATE VIDEO
-# =========================================================
+    # -----------------------------
+    # OPTIONAL AUDIO
+    # -----------------------------
 
-if st.button("🎬 Create Video"):
+    final_video = CompositeVideoClip([
+        background,
+        text_clip
+    ])
 
-    if not uploaded_video or not uploaded_audio or not caption_text:
-        st.warning("Please upload video, audio, and caption text.")
-    else:
+    # Optional background audio
+    if os.path.exists("nasheed.mp3"):
 
-        with open("temp_video.mp4", "wb") as f:
-            f.write(uploaded_video.read())
+        audio = AudioFileClip(
+            "nasheed.mp3"
+        ).subclip(0, DURATION)
 
-        with open("temp_audio.mp3", "wb") as f:
-            f.write(uploaded_audio.read())
+        final_video = final_video.set_audio(audio)
 
-        try:
-            st.info("Rendering video... Please wait.")
+    # -----------------------------
+    # EXPORT VIDEO
+    # -----------------------------
 
-            # Load files
-            video = VideoFileClip("temp_video.mp4")
-            audio = AudioFileClip("temp_audio.mp3")
+    final_video.write_videofile(
+        output_filename,
+        fps=30,
+        codec="libx264",
+        audio_codec="aac",
+        bitrate="8000k"
+    )
 
-            # Add audio
-            final_video = video.set_audio(audio)
-
-            # Create captions
-            txt_clip = TextClip(
-                caption_text,
-                fontsize=50,
-                color="white",
-                method="caption",
-                size=(video.w * 0.8, None)
-            )
-
-            txt_clip = txt_clip.set_position(("center", "bottom"))
-            txt_clip = txt_clip.set_duration(video.duration)
-
-            # Combine video + text
-            final = CompositeVideoClip([final_video, txt_clip])
-
-            # Export
-            output_path = "final_video.mp4"
-
-            final.write_videofile(
-                output_path,
-                codec="libx264",
-                audio_codec="aac"
-            )
-
-            st.success("✅ Video Created Successfully!")
-
-            # Download button
-            with open(output_path, "rb") as file:
-                st.download_button(
-                    label="⬇ Download Video",
-                    data=file,
-                    file_name="viral_islamic_video.mp4",
-                    mime="video/mp4"
-                )
-
-        except Exception as e:
-            st.error(f"❌ Video creation failed:\n{e}")
-
-# =========================================================
-# FOOTER
-# =========================================================
-
-st.divider()
-st.caption("Powered by Gemini AI + Streamlit + MoviePy")
+    return output_filename
