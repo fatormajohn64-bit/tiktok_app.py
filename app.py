@@ -66,17 +66,27 @@ if st.button("🚀 Generate Full Video"):
                 st.stop()
 
         # --- STEP 2: TEXT-TO-SPEECH AUDIO ---
+        # Using full path inside current working directory to fix the OSError
+        current_dir = os.getcwd()
+        audio_temp = os.path.join(current_dir, "voiceover.mp3")
+        output_video_path = os.path.join(current_dir, "final_output.mp4")
+
         with st.spinner("Step 2: Synthesizing Voiceover..."):
             try:
                 tts = gTTS(text=script_text, lang='en', slow=False)
-                audio_temp = "voiceover.mp3"
                 tts.save(audio_temp)
+                
+                # Double-check that the file actually exists on the server
+                if os.path.exists(audio_temp):
+                    st.success("✅ Voiceover synthesized successfully.")
+                else:
+                    st.error("❌ Failed to create the audio file.")
+                    st.stop()
             except Exception as e:
                 st.error(f"❌ Voice synthesis failed: {e}")
                 st.stop()
 
         # --- STEP 3: VIDEO RENDERING ENGINE ---
-        output_video_path = "final_output.mp4"
         with st.spinner("Step 3: Rendering Video & Overlaying Audio..."):
             try:
                 # Load background clip and cut it to the right length
@@ -88,7 +98,7 @@ if st.button("🚀 Generate Full Video"):
                 
                 video_clip = video_clip.subclip(0, target_duration)
                 
-                # Load the generated AI voiceover audio
+                # Load the generated AI voiceover audio directly from the safe path
                 audio_clip = AudioFileClip(audio_temp)
                 
                 # If audio is longer than target video, cut it, or vice versa
@@ -98,7 +108,7 @@ if st.button("🚀 Generate Full Video"):
                 # Attach audio to the video
                 final_clip = video_clip.set_audio(audio_clip)
                 
-                # Write final file to disk
+                # Write final file to disk with safe path
                 final_clip.write_videofile(
                     output_video_path, 
                     codec="libx264", 
@@ -129,3 +139,10 @@ if st.button("🚀 Generate Full Video"):
                     
             except Exception as e:
                 st.error(f"❌ Video rendering failed: {e}")
+            finally:
+                # Cleanup files so the next generation doesn't get messed up
+                if os.path.exists(audio_temp):
+                    try:
+                        os.remove(audio_temp)
+                    except:
+                        pass
