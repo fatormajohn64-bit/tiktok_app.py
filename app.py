@@ -2,7 +2,7 @@ import os
 import streamlit as st
 from groq import Groq
 from gtts import gTTS
-from moviepy.editor import VideoFileClip, AudioFileClip
+from moviepy.editor import VideoFileClip, AudioFileClip, ColorClip
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Islamic Video Content Factory PRO", page_icon="🌙", layout="wide")
@@ -16,12 +16,6 @@ if not API_KEY:
     st.stop()
 
 client = Groq(api_key=API_KEY)
-
-# --- VIDEO FILE CHECK ---
-VIDEO_PATH = "background.mp4"
-if not os.path.exists(VIDEO_PATH):
-    st.error(f"❌ '{VIDEO_PATH}' not found in main directory. Upload it to GitHub first.")
-    st.stop()
 
 # --- SIDEBAR CONTROLS ---
 st.sidebar.header("🎬 Video Controls")
@@ -66,7 +60,6 @@ if st.button("🚀 Generate Full Video"):
                 st.stop()
 
         # --- STEP 2: TEXT-TO-SPEECH AUDIO ---
-        # Using full path inside current working directory to fix the OSError
         current_dir = os.getcwd()
         audio_temp = os.path.join(current_dir, "voiceover.mp3")
         output_video_path = os.path.join(current_dir, "final_output.mp4")
@@ -76,7 +69,6 @@ if st.button("🚀 Generate Full Video"):
                 tts = gTTS(text=script_text, lang='en', slow=False)
                 tts.save(audio_temp)
                 
-                # Double-check that the file actually exists on the server
                 if os.path.exists(audio_temp):
                     st.success("✅ Voiceover synthesized successfully.")
                 else:
@@ -86,29 +78,45 @@ if st.button("🚀 Generate Full Video"):
                 st.error(f"❌ Voice synthesis failed: {e}")
                 st.stop()
 
-        # --- STEP 3: VIDEO RENDERING ENGINE ---
+        # --- STEP 3: VIDEO RENDERING ENGINE WITH FALLBACK ---
         with st.spinner("Step 3: Rendering Video & Overlaying Audio..."):
+            video_clip = None
+            audio_clip = None
+            final_clip = None
+            VIDEO_PATH = "background.mp4"
+            
             try:
-                # Load background clip and cut it to the right length
-                video_clip = VideoFileClip(VIDEO_PATH)
+                # Set layout dimensions based on format choice
+                if "Vertical" in video_format:
+                    dimensions = (720, 1280)
+                else:
+                    dimensions = (1280, 720)
+
+                # Attempt to load user's custom background MP4
+                if os.path.exists(VIDEO_PATH) and os.path.getsize(VIDEO_PATH) > 0:
+                    try:
+                        video_clip = VideoFileClip(VIDEO_PATH)
+                        if video_clip.duration < target_duration:
+                            target_duration = video_clip.duration
+                        video_clip = video_clip.subclip(0, target_duration)
+                        st.info("🎥 Using your uploaded background.mp4 file...")
+                    except Exception as video_err:
+                        st.warning(f"⚠️ Could not read background.mp4 syntax ({video_err}). Using clean cinematic canvas fallback...")
+                        video_clip = ColorClip(size=dimensions, color=(20, 50, 30), duration=target_duration)
+                else:
+                    # Fallback to a beautiful dark Islamic green background if no video file exists
+                    st.warning("⚠️ 'background.mp4' missing or empty. Creating a beautiful deep-green canvas fallback...")
+                    video_clip = ColorClip(size=dimensions, color=(20, 50, 30), duration=target_duration)
                 
-                # Check if background video is too short
-                if video_clip.duration < target_duration:
-                    target_duration = video_clip.duration
-                
-                video_clip = video_clip.subclip(0, target_duration)
-                
-                # Load the generated AI voiceover audio directly from the safe path
+                # Load the generated AI voiceover audio
                 audio_clip = AudioFileClip(audio_temp)
-                
-                # If audio is longer than target video, cut it, or vice versa
                 if audio_clip.duration > target_duration:
                     audio_clip = audio_clip.subclip(0, target_duration)
                 
-                # Attach audio to the video
+                # Attach audio to the canvas or background video
                 final_clip = video_clip.set_audio(audio_clip)
                 
-                # Write final file to disk with safe path
+                # Render file to disk
                 final_clip.write_videofile(
                     output_video_path, 
                     codec="libx264", 
@@ -117,14 +125,9 @@ if st.button("🚀 Generate Full Video"):
                     logger=None
                 )
                 
-                # Close files to free system memory
-                video_clip.close()
-                audio_clip.close()
-                final_clip.close()
-                
                 st.success("✨ Video Fully Compiled!")
                 
-                # Show video preview
+                # Show video player preview
                 with open(output_video_path, "rb") as file:
                     st.video(file.read())
                     
@@ -138,9 +141,13 @@ if st.button("🚀 Generate Full Video"):
                     )
                     
             except Exception as e:
-                st.error(f"❌ Video rendering failed: {e}")
+                st.error(f"❌ Video rendering engine failed: {e}")
             finally:
-                # Cleanup files so the next generation doesn't get messed up
+                # Safely close files to avoid memory lockups
+                if video_clip: video_clip.close()
+                if audio_clip: audio_clip.close()
+                if final_clip: final_clip.close()
+                
                 if os.path.exists(audio_temp):
                     try:
                         os.remove(audio_temp)
