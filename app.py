@@ -1,5 +1,5 @@
 # =========================================================
-# ISLAMIC VIDEO CONTENT FACTORY ULTIMATE
+# ISLAMIC VIDEO FACTORY ULTIMATE
 # STREAMLIT + GROQ + MOVIEPY + GTTS
 # =========================================================
 
@@ -36,7 +36,7 @@ st.set_page_config(
 )
 
 # =========================================================
-# DARK ISLAMIC UI
+# UI STYLE
 # =========================================================
 
 st.markdown("""
@@ -73,7 +73,7 @@ section[data-testid="stSidebar"] {
 st.title("☪ Islamic Video Factory Ultimate")
 
 st.write(
-    "Generate unlimited cinematic Islamic AI videos with Groq + Llama 3.3 70B."
+    "Generate unlimited cinematic Islamic AI videos using Groq + Llama 3.3 70B."
 )
 
 # =========================================================
@@ -220,7 +220,6 @@ You possess deep knowledge of:
 - The Companions
 - Spiritual purification
 - Islamic reflections
-- Emotional reminders
 - Islamic Golden Age
 
 CRITICAL RULES:
@@ -231,7 +230,7 @@ CRITICAL RULES:
 - Use diverse storytelling styles
 - Use emotional cinematic pacing
 - Generate highly unique scripts every time
-- Create viral social media style narration
+- Create viral social media narration
 - Use deep emotional hooks
 - Use strong endings
 
@@ -302,7 +301,7 @@ def generate_script(topic, theme, video_length):
         ],
 
         temperature=1.2,
-        max_tokens=4000
+        max_tokens=2500
 
     )
 
@@ -361,19 +360,27 @@ def create_video(audio_path):
 
     audio_clip = AudioFileClip(audio_path)
 
+    background = None
+
     # =====================================================
     # TRY BACKGROUND VIDEO
     # =====================================================
-
-    background = None
 
     if os.path.exists("background.mp4"):
 
         try:
 
-            background = VideoFileClip(
-                "background.mp4"
-            ).subclip(0, TARGET_DURATION)
+            bg_video = VideoFileClip("background.mp4")
+
+            max_duration = min(
+                TARGET_DURATION,
+                bg_video.duration
+            )
+
+            background = bg_video.subclip(
+                0,
+                max_duration
+            )
 
         except Exception:
 
@@ -403,9 +410,17 @@ def create_video(audio_path):
 
             color=bg_color,
 
-            duration=TARGET_DURATION
+            duration=audio_clip.duration
 
         )
+
+    # =====================================================
+    # MATCH VIDEO TO AUDIO
+    # =====================================================
+
+    background = background.set_duration(
+        audio_clip.duration
+    )
 
     # =====================================================
     # COMBINE AUDIO + VIDEO
@@ -418,7 +433,7 @@ def create_video(audio_path):
     final_video = final_video.set_audio(audio_clip)
 
     # =====================================================
-    # EXPORT VIDEO
+    # EXPORT
     # =====================================================
 
     final_video.write_videofile(
@@ -431,14 +446,16 @@ def create_video(audio_path):
 
         audio_codec="aac",
 
-        bitrate="5000k"
+        bitrate="5000k",
+
+        preset="medium"
 
     )
 
     return output_path
 
 # =========================================================
-# SCRIPT DOWNLOAD
+# DOWNLOAD SCRIPT
 # =========================================================
 
 def script_download(script):
@@ -451,112 +468,118 @@ def script_download(script):
 
 if st.button("Generate Islamic Cinematic Video"):
 
-    try:
+    if not topic:
 
-        with st.status(
-            "Generating Islamic AI Content...",
-            expanded=True
-        ) as status:
+        st.warning("Please enter a topic.")
 
-            # =================================================
-            # STEP 1 - GENERATE SCRIPT
-            # =================================================
+    else:
 
-            st.write("Generating cinematic narration...")
+        try:
 
-            script = generate_script(
-                topic,
-                theme,
-                video_length
+            with st.status(
+                "Generating Islamic AI Content...",
+                expanded=True
+            ) as status:
+
+                # =================================================
+                # STEP 1 - SCRIPT
+                # =================================================
+
+                st.write("Generating narration script...")
+
+                script = generate_script(
+                    topic,
+                    theme,
+                    video_length
+                )
+
+                save_hash(script)
+
+                memory["used_topics"].append(topic)
+
+                save_memory(memory)
+
+                # =================================================
+                # STEP 2 - VOICEOVER
+                # =================================================
+
+                st.write("Generating AI voiceover...")
+
+                audio_path = create_voiceover(script)
+
+                # =================================================
+                # STEP 3 - VIDEO
+                # =================================================
+
+                st.write("Rendering cinematic video...")
+
+                video_path = create_video(audio_path)
+
+                # =================================================
+                # COMPLETE
+                # =================================================
+
+                status.update(
+                    label="Video Generation Complete",
+                    state="complete"
+                )
+
+            # =====================================================
+            # SHOW SCRIPT
+            # =====================================================
+
+            st.subheader("Generated Narration")
+
+            st.text_area(
+                "Narration Script",
+                script,
+                height=350
             )
 
-            save_hash(script)
+            # =====================================================
+            # SHOW VIDEO
+            # =====================================================
 
-            memory["used_topics"].append(topic)
+            st.subheader("Generated Video")
 
-            save_memory(memory)
+            st.video(video_path)
 
-            # =================================================
-            # STEP 2 - CREATE VOICE
-            # =================================================
+            # =====================================================
+            # DOWNLOAD VIDEO
+            # =====================================================
 
-            st.write("Generating voiceover...")
+            with open(video_path, "rb") as f:
 
-            audio_path = create_voiceover(script)
+                st.download_button(
 
-            # =================================================
-            # STEP 3 - CREATE VIDEO
-            # =================================================
+                    label="Download Video",
 
-            st.write("Rendering cinematic video...")
+                    data=f,
 
-            video_path = create_video(audio_path)
+                    file_name="islamic_video.mp4",
 
-            # =================================================
-            # COMPLETE
-            # =================================================
+                    mime="video/mp4"
 
-            status.update(
-                label="Video Generation Complete",
-                state="complete"
-            )
+                )
 
-        # =====================================================
-        # DISPLAY SCRIPT
-        # =====================================================
-
-        st.subheader("Generated Narration")
-
-        st.text_area(
-            "Narration Script",
-            script,
-            height=350
-        )
-
-        # =====================================================
-        # DISPLAY VIDEO
-        # =====================================================
-
-        st.subheader("Generated Video")
-
-        st.video(video_path)
-
-        # =====================================================
-        # DOWNLOAD VIDEO
-        # =====================================================
-
-        with open(video_path, "rb") as f:
+            # =====================================================
+            # DOWNLOAD SCRIPT
+            # =====================================================
 
             st.download_button(
 
-                label="Download Video",
+                label="Download Script",
 
-                data=f,
+                data=script_download(script),
 
-                file_name="islamic_video.mp4",
+                file_name="islamic_script.txt",
 
-                mime="video/mp4"
+                mime="text/plain"
 
             )
 
-        # =====================================================
-        # DOWNLOAD SCRIPT
-        # =====================================================
+        except Exception as e:
 
-        st.download_button(
+            st.error("Generation Failed")
 
-            label="Download Script",
-
-            data=script_download(script),
-
-            file_name="islamic_script.txt",
-
-            mime="text/plain"
-
-        )
-
-    except Exception as e:
-
-        st.error("Generation Failed")
-
-        st.code(str(e))
+            st.code(str(e))
