@@ -51,7 +51,7 @@ except Exception as e:
 # - gemini-1.5-flash
 # - gemini-1.5-pro
 # =========================
-MODEL_NAME = "gemini-1.5-flash-latest"
+MODEL_NAME = "gemini-1.0-pro"
 
 # Create model
 try:
