@@ -1,103 +1,58 @@
 import streamlit as st
 import google.generativeai as genai
 import os
-import json
 import random
-from datetime import datetime
-from PIL import Image
 
-# --- 1. INITIAL SETUP & STABLE BRAIN ---
+# --- 1. CONFIGURATION ---
 st.set_page_config(page_title="Islamic TikTok AI Factory", layout="wide")
 
-# This fix prevents the 404 v1beta error seen in your logs
-def setup_genai():
+def init_brain():
     try:
         if "GEMINI_API_KEY" in st.secrets:
             genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-            # Using gemini-pro as the stable fallback to avoid 404 errors
-            return genai.GenerativeModel("gemini-pro")
+            # MUST use gemini-1.5-flash for newly generated API keys
+            return genai.GenerativeModel("gemini-1.5-flash")
         else:
-            st.error("Missing GEMINI_API_KEY in Streamlit Secrets.")
+            st.error("Missing API Key in Secrets!")
             return None
     except Exception as e:
-        st.error(f"Brain Connection Error: {e}")
+        st.error(f"Brain Error: {e}")
         return None
 
-model = setup_genai()
+model = init_brain()
 
-# --- 2. FOLDER & DATABASE SYSTEM ---
-folders = ["backgrounds", "exports", "logs"]
-for f in folders:
-    if not os.path.exists(f):
-        os.makedirs(f)
-
-DB_FILE = "used_quotes.json"
-
-def load_used_content():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r") as f:
-            return json.load(f)
-    return []
-
-def save_used_content(quote):
-    history = load_used_content()
-    history.append({"quote": quote, "date": str(datetime.now())})
-    with open(DB_FILE, "w") as f:
-        json.dump(history, f)
-
-# --- 3. UI LAYOUT ---
+# --- 2. UI DASHBOARD ---
 st.title("🕌 Islamic TikTok AI Factory")
-st.markdown("### Automated Viral Content Machine v1.0")
+st.subheader("Automated Viral Content Machine v1.0")
 
-col1, col2 = st.columns([1, 1])
+col1, col2 = st.columns(2)
 
 with col1:
     st.header("⚙️ Configuration")
-    batch_size = st.number_input("Number of videos to generate", min_value=1, max_value=100, value=1)
+    batch_size = st.number_input("Number of videos to generate", 1, 1000, 1)
     style = st.selectbox("Content Style", ["Emotional Reminders", "Quranic Motivation", "Peaceful Reflections"])
     
-    generate_btn = st.button("🚀 Start Production Line")
+    if st.button("🚀 Start Production Line"):
+        if model:
+            progress = st.progress(0)
+            for i in range(batch_size):
+                st.write(f"Generating Video {i+1} of {batch_size}...")
+                try:
+                    # Generate unique content
+                    prompt = f"Generate a highly unique {style} for TikTok. Never repeat. ID: {random.random()}"
+                    response = model.generate_content(prompt)
+                    st.info(f"Generated Script:\n{response.text}")
+                except Exception as e:
+                    st.error(f"Error on video {i+1}: {e}")
+                progress.progress((i+1)/batch_size)
+            st.success("🧩 Batch Production Complete!")
 
 with col2:
     st.header("📊 Factory Status")
-    history = load_used_content()
-    st.metric("Unique Videos Generated", len(history))
+    st.metric("Unique Videos Generated", batch_size if 'batch_size' in locals() else 0) 
+    
+    # Check for background video
     if os.path.exists("background.mp4"):
         st.success("✅ background.mp4 detected")
     else:
-        st.warning("⚠️ No 'background.mp4' found in root folder.")
-
-# --- 4. CORE AUTOMATION ENGINE ---
-if generate_btn and model:
-    progress_bar = st.progress(0)
-    
-    for i in range(batch_size):
-        st.write(f"Generating Video {i+1} of {batch_size}...")
-        
-        # A. Uniqueness Engine: Dynamic Prompting
-        random_seed = random.randint(1, 10000)
-        prompt = f"""Generate a unique, viral {style} for TikTok. 
-        Focus: Heart-touching Islamic wisdom. 
-        Variation ID: {random_seed}. 
-        Format: HOOK | BODY | HASHTAGS.
-        Do not repeat previous common phrases."""
-        
-        try:
-            response = model.generate_content(prompt)
-            content = response.text
-            
-            # Save to uniqueness database
-            save_used_content(content)
-            
-            # B. UI Preview
-            st.info(f"**Generated Content:**\n{content}")
-            
-            # C. Simulation of MoviePy Export (Requires high-RAM environment)
-            st.write("🎬 Processing video overlays (Background: background.mp4)...")
-            
-        except Exception as e:
-            st.error(f"Error on video {i+1}: {e}")
-            
-        progress_bar.progress((i + 1) / batch_size)
-    
-    st.success("✨ Batch Production Complete!")
+        st.error("❌ background.mp4 NOT found! Please upload to GitHub.")
