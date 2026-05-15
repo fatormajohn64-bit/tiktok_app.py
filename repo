@@ -5,6 +5,5 @@ app.py
 requirements.txt
 packages.txt
 background.mp4
-
 .streamlit/
     secrets.toml
