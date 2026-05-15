@@ -1,58 +1,151 @@
+# app.py
+# Streamlit + Google Gemini (Stable v1 Compatible)
+# Fixes:
+# - 404 Model Not Found
+# - Unexpected module name format
+# - Incorrect beta model usage
+# - Better error handling
+# - Proper background.mp4 detection
+
+import os
 import streamlit as st
 import google.generativeai as genai
-import os
-import random
+from google.api_core.exceptions import GoogleAPIError
 
-# --- 1. CONFIGURATION ---
-st.set_page_config(page_title="Islamic TikTok AI Factory", layout="wide")
+# =========================
+# PAGE CONFIG
+# =========================
+st.set_page_config(
+    page_title="AI Video Production Line",
+    page_icon="🎬",
+    layout="centered"
+)
 
-def init_brain():
+st.title("🎬 Islamic AI Video Production Line")
+
+# =========================
+# API KEY
+# =========================
+# Add your API key in Streamlit secrets:
+# GEMINI_API_KEY="your_key_here"
+
+API_KEY = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
+
+if not API_KEY:
+    st.error("❌ Gemini API key not found.")
+    st.stop()
+
+# =========================
+# CONFIGURE GEMINI
+# =========================
+try:
+    genai.configure(api_key=API_KEY)
+except Exception as e:
+    st.error(f"❌ Failed to configure Gemini API:\n{e}")
+    st.stop()
+
+# =========================
+# MODEL SELECTION
+# IMPORTANT:
+# Use ONLY lowercase:
+# - gemini-1.5-flash
+# - gemini-1.5-pro
+# =========================
+MODEL_NAME = "gemini-1.5-flash"
+
+# Create model
+try:
+    model = genai.GenerativeModel(MODEL_NAME)
+except Exception as e:
+    st.error(f"❌ Failed to initialize model:\n{e}")
+    st.stop()
+
+# =========================
+# VIDEO FILE CHECK
+# =========================
+VIDEO_PATH = "background.mp4"
+
+if os.path.exists(VIDEO_PATH):
+    st.success("✅ background.mp4 detected")
+
+    # Optional preview
+    with open(VIDEO_PATH, "rb") as video_file:
+        st.video(video_file.read())
+else:
+    st.warning(
+        "⚠️ background.mp4 not found.\n"
+        "Place the file in the same folder as app.py"
+    )
+
+# =========================
+# USER INPUT
+# =========================
+topic = st.text_input(
+    "Enter Islamic video topic:",
+    placeholder="Mercy of Allah"
+)
+
+# =========================
+# START BUTTON
+# =========================
+if st.button("🚀 Start Production Line"):
+
+    if not topic:
+        st.warning("Please enter a topic.")
+        st.stop()
+
+    if not os.path.exists(VIDEO_PATH):
+        st.error("❌ background.mp4 is missing.")
+        st.stop()
+
+    prompt = f"""
+    Create a short Islamic TikTok video script about:
+    {topic}
+
+    Requirements:
+    - Emotional hook
+    - Quran verse
+    - Short narration
+    - Viral TikTok style
+    - Ending reminder
+    """
+
+    st.info("Generating content with Gemini...")
+
+    # =========================
+    # GENERATE CONTENT
+    # =========================
     try:
-        if "GEMINI_API_KEY" in st.secrets:
-            genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-            # MUST use gemini-1.5-flash for newly generated API keys
-            return genai.GenerativeModel("gemini-pro")
+        response = model.generate_content(prompt)
+
+        # Safe output handling
+        generated_text = ""
+
+        if hasattr(response, "text"):
+            generated_text = response.text
+        elif response.candidates:
+            generated_text = response.candidates[0].content.parts[0].text
         else:
-            st.error("Missing API Key in Secrets!")
-            return None
+            generated_text = "No response generated."
+
+        st.success("✅ Script Generated")
+        st.text_area(
+            "Generated Script",
+            generated_text,
+            height=300
+        )
+
+    # =========================
+    # API ERRORS
+    # =========================
+    except GoogleAPIError as api_error:
+        st.error(f"❌ Google API Error:\n{api_error}")
+
     except Exception as e:
-        st.error(f"Brain Error: {e}")
-        return None
+        st.error(f"❌ Unexpected Error:\n{e}")
 
-model = init_brain()
-
-# --- 2. UI DASHBOARD ---
-st.title("🕌 Islamic TikTok AI Factory")
-st.subheader("Automated Viral Content Machine v1.0")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.header("⚙️ Configuration")
-    batch_size = st.number_input("Number of videos to generate", 1, 1000, 1)
-    style = st.selectbox("Content Style", ["Emotional Reminders", "Quranic Motivation", "Peaceful Reflections"])
-    
-    if st.button("🚀 Start Production Line"):
-        if model:
-            progress = st.progress(0)
-            for i in range(batch_size):
-                st.write(f"Generating Video {i+1} of {batch_size}...")
-                try:
-                    # Generate unique content
-                    prompt = f"Generate a highly unique {style} for TikTok. Never repeat. ID: {random.random()}"
-                    response = model.generate_content(prompt)
-                    st.info(f"Generated Script:\n{response.text}")
-                except Exception as e:
-                    st.error(f"Error on video {i+1}: {e}")
-                progress.progress((i+1)/batch_size)
-            st.success("🧩 Batch Production Complete!")
-
-with col2:
-    st.header("📊 Factory Status")
-    st.metric("Unique Videos Generated", batch_size if 'batch_size' in locals() else 0) 
-    
-    # Check for background video
-    if os.path.exists("background.mp4"):
-        st.success("✅ background.mp4 detected")
-    else:
-        st.error("❌ background.mp4 NOT found! Please upload to GitHub.")
+# =========================
+# FOOTER
+# =========================
+st.markdown("---")
+st.caption("Powered by Streamlit + Gemini 1.5 Flash")
