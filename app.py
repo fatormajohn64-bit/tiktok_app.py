@@ -1,426 +1,205 @@
 # =========================================================
-# ISLAMIC AI VIDEO FACTORY - MASTER VERSION
-# Streamlit + Gemini + Anti-Repeat + HD Export
+# IMPORTS
 # =========================================================
-
+import os
 import streamlit as st
 import google.generativeai as genai
-import os
-import json
-import random
-import time
-import hashlib
-import requests
-import imageio_ffmpeg
-from datetime import datetime
-from moviepy.editor import *
-from PIL import Image, ImageDraw, ImageFont
 
-# =========================================================
-# FFMPEG FIX
-# =========================================================
-
-os.environ["IMAGEIO_FFMPEG_EXE"] = imageio_ffmpeg.get_ffmpeg_exe()
-
-# =========================================================
-# STREAMLIT CONFIG
-# =========================================================
-
-st.set_page_config(
-    page_title="Islamic AI Video Factory",
-    layout="wide"
+from moviepy.editor import (
+    VideoFileClip,
+    AudioFileClip,
+    TextClip,
+    CompositeVideoClip,
 )
 
 # =========================================================
-# SECRETS
+# PAGE CONFIG
 # =========================================================
+st.set_page_config(
+    page_title="Islamic AI Video Factory",
+    page_icon="🎬",
+    layout="wide"
+)
 
-GENAI_API_KEY = "your_actual_api_key_here"
-
-
-# =========================================================
-# GEMINI CONFIG
-# =========================================================
-
-genai.configure(GENAI_API_KEY)
-
+st.title("🎬 Islamic AI Video Factory")
+st.caption("Automated TikTok Video Generator using Gemini AI")
 
 # =========================================================
-# AUTO MODEL DETECTION
+# SECRETS & GEMINI CONFIG
 # =========================================================
 
-available_models = []
-
+# Safely load API key from Streamlit Cloud Secrets
 try:
-    models = genai.list_models()
+    # Add this inside Streamlit Cloud -> Settings -> Secrets
+    # GEMINI_API_KEY = "your-real-api-key"
+    API_KEY = st.secrets["GEMINI_API_KEY"]
 
-    for m in models:
-        if "generateContent" in m.supported_generation_methods:
-            available_models.append(m.name)
+    # Correct Gemini configuration
+    genai.configure(api_key=API_KEY)
 
 except Exception as e:
-    st.error(e)
+    st.error(
+        "❌ API Key not found in Streamlit Secrets.\n\n"
+        "Go to:\n"
+        "Streamlit Dashboard → App Settings → Secrets\n\n"
+        "Then add:\n"
+        'GEMINI_API_KEY = "your-api-key"'
+    )
     st.stop()
 
-selected_model = None
+# =========================================================
+# LOAD GEMINI MODEL
+# =========================================================
 
-priority = [
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "flash"
-]
+try:
+    # Stable working model
+    model = genai.GenerativeModel("gemini-1.5-flash")
 
-for p in priority:
-    for m in available_models:
-        if p.lower() in m.lower():
-            selected_model = m
-            break
-    if selected_model:
-        break
-
-if not selected_model:
-    st.error("No Gemini Flash model found.")
-    st.write(available_models)
+except Exception as e:
+    st.error(f"❌ Failed to load Gemini model:\n{e}")
     st.stop()
 
-model = genai.GenerativeModel(selected_model)
-
 # =========================================================
-# MASSIVE MEMORY SYSTEM
+# VIDEO SCRIPT GENERATOR
 # =========================================================
 
-MEMORY_FILE = "islamic_memory.json"
+def generate_script(topic):
+    prompt = f"""
+    Create a short viral Islamic TikTok video script about:
+    {topic}
 
-DEFAULT_MEMORY = {
-    "used_topics": [],
-    "used_verses": [],
-    "used_visuals": [],
-    "used_hashes": [],
-    "generated_videos": []
-}
+    Requirements:
+    - Emotional hook in first 3 seconds
+    - Short and powerful
+    - Easy narration
+    - Maximum 120 words
+    - Include Quran/Hadith if relevant
+    - End with engagement CTA
+    """
 
-if not os.path.exists(MEMORY_FILE):
-    with open(MEMORY_FILE, "w") as f:
-        json.dump(DEFAULT_MEMORY, f)
+    try:
+        response = model.generate_content(prompt)
+        return response.text
 
-def load_memory():
-    with open(MEMORY_FILE, "r") as f:
-        return json.load(f)
-
-def save_memory(data):
-    with open(MEMORY_FILE, "w") as f:
-        json.dump(data, f, indent=2)
-
-memory = load_memory()
+    except Exception as e:
+        return f"Error generating script: {e}"
 
 # =========================================================
-# QURAN KNOWLEDGE
+# UI INPUT
 # =========================================================
 
-QURAN_TOPICS = [
-    "Mercy of Allah",
-    "Prayer",
-    "Patience",
-    "Jannah",
-    "Repentance",
-    "Forgiveness",
-    "Death",
-    "Guidance",
-    "Faith",
-    "Trust in Allah",
-    "Charity",
-    "Hope",
-    "Fear of Allah",
-    "Day of Judgment",
-    "Islamic Brotherhood",
-    "Tahajjud",
-    "Quran Healing",
-    "Power of Dua",
-    "Parents in Islam",
-    "Marriage in Islam"
-]
-
-VISUAL_STYLES = [
-    "cinematic desert",
-    "Islamic mosque night scene",
-    "Muslim man talking emotionally",
-    "Muslim woman making dua",
-    "beautiful Quran closeup",
-    "golden Islamic calligraphy",
-    "sunrise prayer scene",
-    "rainy emotional cinematic scene",
-    "Arabic city cinematic",
-    "dark emotional spiritual scene"
-]
-
-# =========================================================
-# RETRY LOGIC
-# =========================================================
-
-def gemini_generate(prompt, retries=6):
-
-    delay = 5
-
-    for attempt in range(retries):
-
-        try:
-            response = model.generate_content(prompt)
-
-            return response.text
-
-        except Exception as e:
-
-            if "429" in str(e):
-                time.sleep(delay)
-                delay *= 2
-            else:
-                raise e
-
-    raise Exception("Gemini retry failed.")
-
-# =========================================================
-# ANTI-REPEAT ENGINE
-# =========================================================
-
-def content_exists(text):
-
-    content_hash = hashlib.md5(
-        text.encode()
-    ).hexdigest()
-
-    return content_hash in memory["used_hashes"]
-
-def save_hash(text):
-
-    content_hash = hashlib.md5(
-        text.encode()
-    ).hexdigest()
-
-    memory["used_hashes"].append(content_hash)
-
-    save_memory(memory)
-
-# =========================================================
-# GENERATE UNIQUE ISLAMIC CONTENT
-# =========================================================
-
-def generate_unique_video():
-
-    attempts = 0
-
-    while attempts < 10:
-
-        topic = random.choice(QURAN_TOPICS)
-        style = random.choice(VISUAL_STYLES)
-
-        prompt = f"""
-        Create a completely UNIQUE Islamic TikTok video.
-
-        Rules:
-        - Never repeat previous ideas
-        - Emotional and cinematic
-        - 15-30 seconds
-        - Add Quran verse
-        - Add narration
-        - Add scene descriptions
-        - Main character should be Muslim
-        - Add cinematic emotions
-        - High engagement TikTok style
-
-        Previously used topics:
-        {memory['used_topics'][-100:]}
-
-        Previously used verses:
-        {memory['used_verses'][-100:]}
-
-        Topic:
-        {topic}
-
-        Visual style:
-        {style}
-
-        Output format:
-
-        TITLE:
-        VERSE:
-        NARRATION:
-        SCENES:
-        """
-
-        result = gemini_generate(prompt)
-
-        if not content_exists(result):
-
-            save_hash(result)
-
-            return result
-
-        attempts += 1
-
-    raise Exception("Could not generate unique content.")
-
-# =========================================================
-# PARSE AI OUTPUT
-# =========================================================
-
-def parse_content(text):
-
-    sections = {
-        "TITLE": "",
-        "VERSE": "",
-        "NARRATION": "",
-        "SCENES": ""
-    }
-
-    current = None
-
-    for line in text.splitlines():
-
-        line = line.strip()
-
-        if line.startswith("TITLE:"):
-            current = "TITLE"
-            sections[current] = line.replace("TITLE:", "").strip()
-
-        elif line.startswith("VERSE:"):
-            current = "VERSE"
-            sections[current] = line.replace("VERSE:", "").strip()
-
-        elif line.startswith("NARRATION:"):
-            current = "NARRATION"
-            sections[current] = line.replace("NARRATION:", "").strip()
-
-        elif line.startswith("SCENES:"):
-            current = "SCENES"
-            sections[current] = line.replace("SCENES:", "").strip()
-
-        elif current:
-            sections[current] += " " + line
-
-    return sections
-
-# =========================================================
-# CREATE HD VIDEO
-# =========================================================
-
-def create_video(data):
-
-    title = data["TITLE"]
-    verse = data["VERSE"]
-    narration = data["NARRATION"]
-
-    width = 1080
-    height = 1920
-    duration = 20
-
-    background = ColorClip(
-        size=(width, height),
-        color=(0, 0, 0),
-        duration=duration
-    )
-
-    title_clip = TextClip(
-        title,
-        fontsize=80,
-        color="gold",
-        method="caption",
-        size=(900, None)
-    ).set_position(("center", 250)).set_duration(duration)
-
-    verse_clip = TextClip(
-        verse,
-        fontsize=55,
-        color="white",
-        method="caption",
-        size=(900, None)
-    ).set_position(("center", 700)).set_duration(duration)
-
-    narration_clip = TextClip(
-        narration,
-        fontsize=50,
-        color="white",
-        method="caption",
-        size=(950, None)
-    ).set_position(("center", 1200)).set_duration(duration)
-
-    final = CompositeVideoClip([
-        background,
-        title_clip.fadein(1),
-        verse_clip.fadein(2),
-        narration_clip.fadein(3)
-    ])
-
-    # OPTIONAL NASHEED
-    if os.path.exists("nasheed.mp3"):
-
-        audio = AudioFileClip("nasheed.mp3")
-
-        final = final.set_audio(
-            audio.subclip(0, duration)
-        )
-
-    filename = f"video_{int(time.time())}.mp4"
-
-    final.write_videofile(
-        filename,
-        fps=30,
-        codec="libx264",
-        audio_codec="aac",
-        bitrate="8000k"
-    )
-
-    return filename
-
-# =========================================================
-# STREAMLIT UI
-# =========================================================
-
-st.title("☪ Islamic AI Video Factory")
-
-st.write("Generate Unlimited Unique Islamic TikTok Videos")
-
-st.success(f"Using Model: {selected_model}")
+topic = st.text_input(
+    "Enter Video Topic",
+    placeholder="Example: Trust Allah during hardship"
+)
 
 # =========================================================
 # GENERATE BUTTON
 # =========================================================
 
-if st.button("Generate New Islamic Video"):
+if st.button("🚀 Generate Viral Script"):
 
-    with st.spinner("Generating unique Islamic AI video..."):
+    if not topic:
+        st.warning("Please enter a topic.")
+    else:
+
+        with st.spinner("Generating script with Gemini AI..."):
+            script = generate_script(topic)
+
+        st.success("✅ Script Generated")
+
+        st.subheader("Generated Script")
+        st.write(script)
+
+# =========================================================
+# VIDEO CREATION SECTION
+# =========================================================
+
+st.divider()
+st.subheader("🎥 Video Rendering")
+
+uploaded_video = st.file_uploader(
+    "Upload Background Video",
+    type=["mp4", "mov", "avi"]
+)
+
+uploaded_audio = st.file_uploader(
+    "Upload Narration Audio",
+    type=["mp3", "wav"]
+)
+
+caption_text = st.text_area(
+    "Video Caption Text",
+    placeholder="Paste generated script here..."
+)
+
+# =========================================================
+# CREATE VIDEO
+# =========================================================
+
+if st.button("🎬 Create Video"):
+
+    if not uploaded_video or not uploaded_audio or not caption_text:
+        st.warning("Please upload video, audio, and caption text.")
+    else:
+
+        with open("temp_video.mp4", "wb") as f:
+            f.write(uploaded_video.read())
+
+        with open("temp_audio.mp3", "wb") as f:
+            f.write(uploaded_audio.read())
 
         try:
+            st.info("Rendering video... Please wait.")
 
-            raw = generate_unique_video()
+            # Load files
+            video = VideoFileClip("temp_video.mp4")
+            audio = AudioFileClip("temp_audio.mp3")
 
-            data = parse_content(raw)
+            # Add audio
+            final_video = video.set_audio(audio)
 
-            st.subheader("Generated Script")
+            # Create captions
+            txt_clip = TextClip(
+                caption_text,
+                fontsize=50,
+                color="white",
+                method="caption",
+                size=(video.w * 0.8, None)
+            )
 
-            st.write(data)
+            txt_clip = txt_clip.set_position(("center", "bottom"))
+            txt_clip = txt_clip.set_duration(video.duration)
 
-            video_path = create_video(data)
+            # Combine video + text
+            final = CompositeVideoClip([final_video, txt_clip])
 
-            # SAVE MEMORY
-            memory["used_topics"].append(data["TITLE"])
-            memory["used_verses"].append(data["VERSE"])
-            memory["generated_videos"].append(video_path)
+            # Export
+            output_path = "final_video.mp4"
 
-            save_memory(memory)
+            final.write_videofile(
+                output_path,
+                codec="libx264",
+                audio_codec="aac"
+            )
 
-            st.success("Video Created Successfully")
+            st.success("✅ Video Created Successfully!")
 
-            st.video(video_path)
-
-            with open(video_path, "rb") as f:
-
+            # Download button
+            with open(output_path, "rb") as file:
                 st.download_button(
-                    label="Download HD Video",
-                    data=f,
-                    file_name=video_path,
+                    label="⬇ Download Video",
+                    data=file,
+                    file_name="viral_islamic_video.mp4",
                     mime="video/mp4"
                 )
 
         except Exception as e:
+            st.error(f"❌ Video creation failed:\n{e}")
 
-            st.error(str(e))
+# =========================================================
+# FOOTER
+# =========================================================
+
+st.divider()
+st.caption("Powered by Gemini AI + Streamlit + MoviePy")
