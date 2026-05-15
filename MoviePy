@@ -1,4 +1,3 @@
-from moviepy.video.VideoClip import TextClip
-from moviepy.video.VideoClip import ColorClip
-from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
-from moviepy.audio.io.AudioFileClip import AudioFileClip
+with open("background.mp4", 'rb') as video_file:
+    video_bytes = video_file.read()
+    st.video(video_bytes)
