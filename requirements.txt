@@ -1,5 +1,5 @@
 streamlit
-groq
-python-dotenv
+google-generativeai
 gTTS
 moviepy==1.0.3
+Pillow
