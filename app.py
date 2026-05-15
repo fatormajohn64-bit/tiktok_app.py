@@ -42,8 +42,8 @@ GENAI_API_KEY = "your_actual_api_key_here"
 # GEMINI CONFIG
 # =========================================================
 
-genai.configure(GENAI_API_KEY = "your_actual_api_key_here"
-)
+genai.configure(api_key=API_KEY)
+
 
 # =========================================================
 # AUTO MODEL DETECTION
