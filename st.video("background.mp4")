@@ -1,3 +1,0 @@
-with open("background.mp4", 'rb') as video_file:
-    video_bytes = video_file.read()
-    st.video(video_bytes)
