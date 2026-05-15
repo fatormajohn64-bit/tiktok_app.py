@@ -35,7 +35,8 @@ st.set_page_config(
 # SECRETS
 # =========================================================
 
-API_KEY = st.secrets["GEMINI_API_KEY"]
+GENAI_API_KEY = "your_actual_api_key_here"
+
 
 # =========================================================
 # GEMINI CONFIG
