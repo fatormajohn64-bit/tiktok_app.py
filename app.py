@@ -1,18 +1,28 @@
 import os
 import subprocess
 import streamlit as st
-from groq import Groq
 from gtts import gTTS
 import cv2
 import numpy as np
+
+# Clear-cut check to prevent cache import overlap
+try:
+    from groq import Groq
+    HAS_GROQ = True
+except ModuleNotFoundError:
+    HAS_GROQ = False
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Islamic Video Content Factory PRO", page_icon="🌙", layout="wide")
 st.title("🌙 Islamic Video Content Factory PRO")
 st.caption("Generate unlimited cinematic Islamic videos using Groq & High-Speed Engines.")
 
+# --- CHECK DEPENDENCIES ---
+if not HAS_GROQ:
+    st.error("📥 Streamlit is rebuilding the environment dependencies. Please refresh this page in 30 seconds!")
+    st.stop()
+
 # --- API KEY INITIALIZATION ---
-# Safely fetches GROQ_API_KEY from your Streamlit dashboard secrets
 API_KEY = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
 
 if not API_KEY:
@@ -78,7 +88,7 @@ if st.button("Generate Cinematic Islamic Video"):
         video_temp = os.path.join(current_dir, "silent_video.mp4")
         output_video_path = os.path.join(current_dir, "final_output.mp4")
 
-        with st.spinner("Step 2: Synthesizing Voiceover..."):
+        with st.spinner("Step 2: Creating AI Voiceover..."):
             try:
                 tts = gTTS(text=script_text, lang='en', slow=False)
                 tts.save(audio_temp)
