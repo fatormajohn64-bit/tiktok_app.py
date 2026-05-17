@@ -6,10 +6,7 @@ from datetime import datetime
 from groq import Groq
 from gtts import gTTS
 
-from moviepy.editor import (
-    VideoFileClip,
-    AudioFileClip,
-    CompositeAudioClip,
+from moviepy.editor import VideoFileClip, AudioFileClip
 )
 
 # =========================
