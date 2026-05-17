@@ -1,11 +1,12 @@
 streamlit
-moviepy==1.0.3
 groq
+moviepy==1.0.3
 gtts
-pillow
 numpy
+Pillow
 imageio
 imageio-ffmpeg
-decorator
 proglog
+decorator
+tqdm
 requests
