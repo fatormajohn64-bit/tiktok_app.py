@@ -1,13 +1,10 @@
 import streamlit as st
 import os
-import random
 import json
 from datetime import datetime
 from groq import Groq
 from gtts import gTTS
-
 from moviepy.editor import VideoFileClip, AudioFileClip
-)
 
 # =========================
 # PAGE CONFIG
@@ -19,7 +16,7 @@ st.set_page_config(
 )
 
 # =========================
-# STYLES
+# CUSTOM STYLE
 # =========================
 
 st.markdown("""
@@ -28,6 +25,7 @@ st.markdown("""
     background: linear-gradient(135deg,#031b14,#064e3b);
     color: white;
 }
+
 .stButton>button {
     background: #10b981;
     color: white;
@@ -37,6 +35,7 @@ st.markdown("""
     font-size: 18px;
     font-weight: bold;
 }
+
 .memory-box {
     background: rgba(255,255,255,0.08);
     padding: 15px;
@@ -54,7 +53,7 @@ st.title("☪ Islamic Video Factory Ultimate")
 st.write("Generate cinematic Islamic AI videos with Groq + MoviePy")
 
 # =========================
-# GROQ API
+# API SETUP
 # =========================
 
 try:
@@ -67,7 +66,7 @@ try:
     st.success("✅ Groq API Connected")
 
 except Exception as e:
-    st.error(f"Groq Error: {e}")
+    st.error(f"Groq API Error: {e}")
     st.stop()
 
 # =========================
@@ -98,7 +97,7 @@ def load_memory():
         return json.load(f)
 
 # =========================
-# VIDEO TOPIC
+# INPUT
 # =========================
 
 topic = st.text_input(
@@ -107,7 +106,7 @@ topic = st.text_input(
 )
 
 # =========================
-# GENERATE BUTTON
+# GENERATE VIDEO
 # =========================
 
 if st.button("Generate Cinematic Islamic Video"):
@@ -117,7 +116,7 @@ if st.button("Generate Cinematic Islamic Video"):
         st.info("🎬 Generating AI cinematic video...")
 
         # =========================
-        # STEP 1 — SCRIPT
+        # STEP 1 — GENERATE SCRIPT
         # =========================
 
         st.write("Step 1: Compiling narration via Groq...")
@@ -126,9 +125,8 @@ if st.button("Generate Cinematic Islamic Video"):
         Create a powerful cinematic Islamic motivational narration about:
         {topic}
 
-        Make it emotional, deep, inspiring, spiritual,
-        short-form TikTok style,
-        and suitable for cinematic voice narration.
+        Make it emotional, spiritual, inspirational,
+        deep, and suitable for TikTok cinematic narration.
         """
 
         response = client.chat.completions.create(
@@ -140,12 +138,12 @@ if st.button("Generate Cinematic Islamic Video"):
                 }
             ],
             temperature=1,
-            max_tokens=500,
+            max_tokens=500
         )
 
         script = response.choices[0].message.content
 
-        st.success("Narration Generated")
+        st.success("✅ Narration Generated")
         st.write(script)
 
         # =========================
@@ -155,19 +153,19 @@ if st.button("Generate Cinematic Islamic Video"):
         save_memory(topic, script)
 
         # =========================
-        # STEP 2 — VOICE
+        # STEP 2 — TEXT TO SPEECH
         # =========================
 
         st.write("Step 2: Generating voice narration...")
 
-        tts = gTTS(script)
+        tts = gTTS(text=script, lang="en")
 
         audio_path = "voice.mp3"
 
         tts.save(audio_path)
 
         # =========================
-        # STEP 3 — VIDEO
+        # STEP 3 — LOAD VIDEO
         # =========================
 
         st.write("Step 3: Processing cinematic visuals...")
@@ -175,7 +173,7 @@ if st.button("Generate Cinematic Islamic Video"):
         background_video = "background.mp4"
 
         if not os.path.exists(background_video):
-            st.error("background.mp4 not found")
+            st.error("❌ background.mp4 not found")
             st.stop()
 
         video = VideoFileClip(background_video)
@@ -202,7 +200,7 @@ if st.button("Generate Cinematic Islamic Video"):
 
         with open(output_path, "rb") as file:
             st.download_button(
-                "Download Video",
+                "⬇ Download Video",
                 file,
                 file_name="islamic_ai_video.mp4"
             )
@@ -223,6 +221,7 @@ if len(memory) == 0:
     st.info("No memory yet")
 
 else:
+
     for item in reversed(memory[-10:]):
 
         with st.expander(item["topic"]):
