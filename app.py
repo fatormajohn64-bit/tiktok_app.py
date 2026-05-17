@@ -1,235 +1,162 @@
-import streamlit as st
 import os
-import json
-from datetime import datetime
+import subprocess
+import streamlit as st
 from groq import Groq
 from gtts import gTTS
-from moviepy.editor import VideoFileClip, AudioFileClip
+import cv2
+import numpy as np
 
-# =========================
-# PAGE CONFIG
-# =========================
+# --- PAGE SETUP ---
+st.set_page_config(page_title="Islamic Video Content Factory PRO", page_icon="🌙", layout="wide")
+st.title("🌙 Islamic Video Content Factory PRO")
+st.caption("Generate unlimited cinematic Islamic videos using Groq & High-Speed Engines.")
 
-st.set_page_config(
-    page_title="Islamic Video Factory Ultimate",
-    layout="wide"
-)
+# --- API KEY INITIALIZATION ---
+API_KEY = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
 
-# =========================
-# CUSTOM STYLE
-# =========================
-
-st.markdown("""
-<style>
-.main {
-    background: linear-gradient(135deg,#031b14,#064e3b);
-    color: white;
-}
-
-.stButton>button {
-    background: #10b981;
-    color: white;
-    border-radius: 12px;
-    border: none;
-    padding: 12px 20px;
-    font-size: 18px;
-    font-weight: bold;
-}
-
-.memory-box {
-    background: rgba(255,255,255,0.08);
-    padding: 15px;
-    border-radius: 15px;
-    margin-top: 10px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# =========================
-# TITLE
-# =========================
-
-st.title("☪ Islamic Video Factory Ultimate")
-st.write("Generate cinematic Islamic AI videos with Groq + MoviePy")
-
-# =========================
-# API SETUP
-# =========================
-
-try:
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-
-    client = Groq(
-        api_key=GROQ_API_KEY
-    )
-
-    st.success("✅ Groq API Connected")
-
-except Exception as e:
-    st.error(f"Groq API Error: {e}")
+if not API_KEY:
+    st.error("❌ KEY ERROR: 'GROQ_API_KEY' is missing from your Streamlit Secrets.")
+    st.info("Please add GROQ_API_KEY to your Streamlit Advanced Secrets dashboard.")
     st.stop()
 
-# =========================
-# MEMORY SYSTEM
-# =========================
+# Initialize the Groq Engine
+try:
+    client = Groq(api_key=API_KEY)
+except Exception as e:
+    st.error(f"❌ Failed to connect to Groq: {e}")
+    st.stop()
 
-MEMORY_FILE = "memory.json"
+# --- SIDEBAR CONTROLS ---
+st.sidebar.header("🎬 Cinematic Controls")
+video_format = st.sidebar.selectbox("Aspect Ratio Layout", ["TikTok / Shorts (Vertical 9:16)", "YouTube (Horizontal 16:9)"])
+chosen_length = st.sidebar.selectbox("Target Video Length", ["30 Seconds", "1 Minute"])
 
-if not os.path.exists(MEMORY_FILE):
-    with open(MEMORY_FILE, "w") as f:
-        json.dump([], f)
+duration_map = {"30 Seconds": 30, "1 Minute": 60}
+target_duration = duration_map[chosen_length]
 
-def save_memory(topic, script):
-    with open(MEMORY_FILE, "r") as f:
-        data = json.load(f)
-
-    data.append({
-        "topic": topic,
-        "script": script,
-        "time": str(datetime.now())
-    })
-
-    with open(MEMORY_FILE, "w") as f:
-        json.dump(data, f, indent=2)
-
-def load_memory():
-    with open(MEMORY_FILE, "r") as f:
-        return json.load(f)
-
-# =========================
-# INPUT
-# =========================
-
-topic = st.text_input(
-    "Video Topic",
-    "Motivation"
-)
-
-# =========================
-# GENERATE VIDEO
-# =========================
+topic = st.text_input("Video Topic", placeholder="Example: Tawakkul in Islam")
 
 if st.button("Generate Cinematic Islamic Video"):
-
-    try:
-
-        st.info("🎬 Generating AI cinematic video...")
-
-        # =========================
-        # STEP 1 — GENERATE SCRIPT
-        # =========================
-
-        st.write("Step 1: Compiling narration via Groq...")
-
-        prompt = f"""
-        Create a powerful cinematic Islamic motivational narration about:
-        {topic}
-
-        Make it emotional, spiritual, inspirational,
-        deep, and suitable for TikTok cinematic narration.
-        """
-
-        response = client.chat.completions.create(
-            model="llama3-8b-8192",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature=1,
-            max_tokens=500
+    if not topic:
+        st.warning("⚠️ Please provide a video topic first.")
+    else:
+        st.info("Step 1: Compiling Narration Script via Groq...")
+        
+        system_instruction = (
+            "You are an elite Islamic cinematic scriptwriter. "
+            "Output ONLY the spoken narration text. Do not include scene labels, brackets, or titles."
         )
+        user_prompt = f"Write a powerful narration script about '{topic}' for a {chosen_length} video."
 
-        script = response.choices[0].message.content
-
-        st.success("✅ Narration Generated")
-        st.write(script)
-
-        # =========================
-        # SAVE MEMORY
-        # =========================
-
-        save_memory(topic, script)
-
-        # =========================
-        # STEP 2 — TEXT TO SPEECH
-        # =========================
-
-        st.write("Step 2: Generating voice narration...")
-
-        tts = gTTS(text=script, lang="en")
-
-        audio_path = "voice.mp3"
-
-        tts.save(audio_path)
-
-        # =========================
-        # STEP 3 — LOAD VIDEO
-        # =========================
-
-        st.write("Step 3: Processing cinematic visuals...")
-
-        background_video = "background.mp4"
-
-        if not os.path.exists(background_video):
-            st.error("❌ background.mp4 not found")
+        try:
+            completion = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": system_instruction},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.85,
+            )
+            script_text = completion.choices[0].message.content
+            st.subheader("📋 Generated Script:")
+            st.write(script_text)
+        except Exception as e:
+            st.error(f"❌ Groq Generation Failed: {e}")
             st.stop()
 
-        video = VideoFileClip(background_video)
+        # --- FILE SYSTEM PATHS ---
+        current_dir = os.getcwd()
+        audio_temp = os.path.join(current_dir, "voiceover.mp3")
+        video_temp = os.path.join(current_dir, "silent_video.mp4")
+        output_video_path = os.path.join(current_dir, "final_output.mp4")
 
-        audio = AudioFileClip(audio_path)
+        # --- STEP 2: VOICE SYNTHESIS ---
+        with st.spinner("Step 2: Creating AI Voiceover..."):
+            try:
+                tts = gTTS(text=script_text, lang='en', slow=False)
+                tts.save(audio_temp)
+            except Exception as e:
+                st.error(f"❌ Voice synthesis failed: {e}")
+                st.stop()
 
-        final_video = video.set_audio(audio)
+        # --- STEP 3: HIGH-SPEED OPENCV RENDERING ---
+        with st.spinner("Step 3: Processing Background Video Assets..."):
+            VIDEO_PATH = "background.mp4"
+            fps = 24
+            total_frames = int(target_duration * fps)
+            
+            # Dimensions based on orientation selection
+            width, height = (540, 960) if "Vertical" in video_format else (960, 540)
 
-        output_path = "final_video.mp4"
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out_writer = cv2.VideoWriter(video_temp, fourcc, fps, (width, height))
 
-        final_video.write_videofile(
-            output_path,
-            codec="libx264",
-            audio_codec="aac"
-        )
+            if os.path.exists(VIDEO_PATH) and os.path.getsize(VIDEO_PATH) > 0:
+                st.info("🎥 Processing background.mp4 utilizing OpenCV loops...")
+                cap = cv2.VideoCapture(VIDEO_PATH)
+                frames_written = 0
+                
+                while frames_written < total_frames:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0) # Loop smoothly if background video is shorter than target length
+                    while frames_written < total_frames:
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
+                        resized_frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_NEAREST)
+                        out_writer.write(resized_frame)
+                        frames_written += 1
+                cap.release()
+            else:
+                st.warning("⚠️ 'background.mp4' fallback active. Rendering emerald canvas...")
+                for _ in range(total_frames):
+                    frame = np.zeros((height, width, 3), dtype=np.uint8)
+                    frame[:] = [23, 35, 15] # Clean Islamic green canvas
+                    out_writer.write(frame)
+            out_writer.release()
 
-        # =========================
-        # SUCCESS
-        # =========================
-
-        st.success("✅ Video Generated Successfully")
-
-        st.video(output_path)
-
-        with open(output_path, "rb") as file:
-            st.download_button(
-                "⬇ Download Video",
-                file,
-                file_name="islamic_ai_video.mp4"
-            )
-
-    except Exception as e:
-        st.error(f"Generation Failed: {e}")
-
-# =========================
-# MEMORY DISPLAY
-# =========================
-
-st.markdown("---")
-st.header("🧠 AI Memory")
-
-memory = load_memory()
-
-if len(memory) == 0:
-    st.info("No memory yet")
-
-else:
-
-    for item in reversed(memory[-10:]):
-
-        with st.expander(item["topic"]):
-
-            st.markdown(f"""
-            <div class="memory-box">
-            {item["script"]}
-            <br><br>
-            <b>Time:</b> {item["time"]}
-            </div>
-            """, unsafe_allow_html=True)
+        # --- STEP 4: HARDWARE-LEVEL FFMPEG AUDIO STITCHING ---
+        with st.spinner("Step 4: Compiling Audio Tracks and Finalizing Video Export..."):
+            try:
+                if os.path.exists(output_video_path):
+                    os.remove(output_video_path)
+                
+                ffmpeg_cmd = [
+                    "ffmpeg", "-y",
+                    "-i", video_temp,
+                    "-i", audio_temp,
+                    "-c:v", "libx264",
+                    "-c:a", "aac",
+                    "-map", "0:v:0",
+                    "-map", "1:a:0",
+                    "-shortest",
+                    "-pix_fmt", "yuv420p",
+                    "-preset", "ultrafast",  
+                    output_video_path
+                ]
+                
+                subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+                
+                if os.path.exists(output_video_path) and os.path.getsize(output_video_path) > 0:
+                    st.success("✨ Production Complete! Video fully built.")
+                    
+                    with open(output_video_path, "rb") as file:
+                        video_bytes = file.read()
+                        st.video(video_bytes)
+                        
+                    st.download_button(
+                        label="📥 Download Finished Video",
+                        data=video_bytes,
+                        file_name=f"islamic_factory_{topic.lower().replace(' ', '_')}.mp4",
+                        mime="video/mp4"
+                    )
+                else:
+                    st.error("❌ Final compilation error: Output container empty.")
+                    
+            except Exception as e:
+                st.error(f"❌ Final Stitching Error: {e}")
+            finally:
+                # Clean up temporary staging files
+                for temp_asset in [video_temp, audio_temp]:
+                    if os.path.exists(temp_asset):
+                        try: os.remove(temp_asset)
+                        except: pass
