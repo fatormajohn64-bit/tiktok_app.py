@@ -64,11 +64,18 @@ if st.button("Generate Cinematic Islamic Video"):
             st.error(f"❌ Groq Generation Failed: {e}")
             st.stop()
 
-        # --- FILE SYSTEM PATHS ---
+        # --- DYNAMIC ASSET DETECTION ---
         current_dir = os.getcwd()
         audio_temp = os.path.join(current_dir, "voiceover.mp3")
         video_temp = os.path.join(current_dir, "silent_video.mp4")
         output_video_path = os.path.join(current_dir, "final_output.mp4")
+
+        # Automatically look for ANY mp4/mov file in your GitHub root directory
+        detected_video_path = None
+        for file in os.listdir(current_dir):
+            if file.lower().endswith(('.mp4', '.mov', '.avi', '.mkv')) and file != "silent_video.mp4" and file != "final_output.mp4":
+                detected_video_path = file
+                break
 
         # --- STEP 2: VOICE SYNTHESIS ---
         with st.spinner("Step 2: Creating AI Voiceover..."):
@@ -81,23 +88,20 @@ if st.button("Generate Cinematic Islamic Video"):
 
         # --- STEP 3: HIGH-SPEED OPENCV RENDERING ---
         with st.spinner("Step 3: Processing Background Video Assets..."):
-            VIDEO_PATH = "background.mp4"
             fps = 24
             total_frames = int(target_duration * fps)
-            
-            # Dimensions based on orientation selection
             width, height = (540, 960) if "Vertical" in video_format else (960, 540)
 
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             out_writer = cv2.VideoWriter(video_temp, fourcc, fps, (width, height))
 
-            if os.path.exists(VIDEO_PATH) and os.path.getsize(VIDEO_PATH) > 0:
-                st.info("🎥 Processing background.mp4 utilizing OpenCV loops...")
-                cap = cv2.VideoCapture(VIDEO_PATH)
+            if detected_video_path and os.path.getsize(detected_video_path) > 0:
+                st.info(f"🎥 Found and loading background asset file: '{detected_video_path}'")
+                cap = cv2.VideoCapture(detected_video_path)
                 frames_written = 0
                 
                 while frames_written < total_frames:
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0) # Loop smoothly if background video is shorter than target length
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0) # Loop video seamlessly if it's shorter than the audio
                     while frames_written < total_frames:
                         ret, frame = cap.read()
                         if not ret:
@@ -107,10 +111,10 @@ if st.button("Generate Cinematic Islamic Video"):
                         frames_written += 1
                 cap.release()
             else:
-                st.warning("⚠️ 'background.mp4' fallback active. Rendering emerald canvas...")
+                st.warning("⚠️ No video files detected in GitHub repository. Using emerald canvas fallback...")
                 for _ in range(total_frames):
                     frame = np.zeros((height, width, 3), dtype=np.uint8)
-                    frame[:] = [23, 35, 15] # Clean Islamic green canvas
+                    frame[:] = [23, 35, 15] 
                     out_writer.write(frame)
             out_writer.release()
 
@@ -155,7 +159,6 @@ if st.button("Generate Cinematic Islamic Video"):
             except Exception as e:
                 st.error(f"❌ Final Stitching Error: {e}")
             finally:
-                # Clean up temporary staging files
                 for temp_asset in [video_temp, audio_temp]:
                     if os.path.exists(temp_asset):
                         try: os.remove(temp_asset)
