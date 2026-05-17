@@ -1,5 +1,11 @@
 streamlit
+moviepy==1.0.3
 groq
-gTTS
-opencv-python-headless
+gtts
+pillow
 numpy
+imageio
+imageio-ffmpeg
+decorator
+proglog
+requests
