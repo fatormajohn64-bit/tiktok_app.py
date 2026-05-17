@@ -180,3 +180,60 @@ if st.button("Generate Cinematic Islamic Video"):
         if not os.path.exists(background_video):
             st.error("background.mp4 not found")
             st.stop()
+
+        video = VideoFileClip(background_video)
+
+        audio = AudioFileClip(audio_path)
+
+        final_video = video.set_audio(audio)
+
+        output_path = "final_video.mp4"
+
+        final_video.write_videofile(
+            output_path,
+            codec="libx264",
+            audio_codec="aac"
+        )
+
+        # =========================
+        # SUCCESS
+        # =========================
+
+        st.success("✅ Video Generated Successfully")
+
+        st.video(output_path)
+
+        with open(output_path, "rb") as file:
+            st.download_button(
+                "Download Video",
+                file,
+                file_name="islamic_ai_video.mp4"
+            )
+
+    except Exception as e:
+        st.error(f"Generation Failed: {e}")
+
+# =========================
+# MEMORY DISPLAY
+# =========================
+
+st.markdown("---")
+st.header("🧠 AI Memory")
+
+memory = load_memory()
+
+if len(memory) == 0:
+    st.info("No memory yet")
+
+else:
+    for item in reversed(memory[-10:]):
+
+        with st.expander(item["topic"]):
+
+            st.markdown(f"""
+            <div class="memory-box">
+            {item["script"]}
+            <br><br>
+            <b>Time:</b> {item["time"]}
+            </div>
+            """, unsafe_allow_html=True)
