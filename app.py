@@ -168,7 +168,7 @@ def generate_islamic_script(category, video_style, video_length, language):
             )
             return json.loads(response.choices[0].message.content)
         except Exception as e:
-            st.warning(f"Model {model} failed or timed out. Transitioning to fallback model...")
+            st.warning(f"Model {model} failed: {e}")
             continue
             
     st.error("All AI models failed to respond. Please check your network connection or API quota limits.")
@@ -246,19 +246,29 @@ def build_video_pipeline(script, voice_style, ratio_mode):
     target_size = (1080, 1920) if ratio_mode == "9:16" else (1920, 1080)
     
     # 2. Resilient Asset Loading & Fallback Safeguards
+    # Default to a beautiful cinematic emerald green background using PIL (100% crash-proof)
+    bg_image = Image.new("RGB", target_size, (2, 44, 34))
+    bg_clip = ImageClip(np.array(bg_image)).set_duration(duration)
+    
     if os.path.exists("background.mp4"):
         try:
-            bg_clip = VideoFileClip("background.mp4").resize(target_size).without_audio()
-            if bg_clip.duration < duration:
-                # Loop video asset if text sequence length outruns native track
-                loops = int(np.ceil(duration / bg_clip.duration))
-                bg_clip = bg_clip.loop(n=loops)
-            bg_clip = bg_clip.subclip(0, duration)
+            video_asset = VideoFileClip("background.mp4").without_audio()
+            # Safe resize handling across different MoviePy versions
+            try:
+                video_asset = video_asset.resize(target_size)
+            except AttributeError:
+                try:
+                    from moviepy.video.fx.all import resize
+                    video_asset = video_asset.fx(resize, target_size[0], target_size[1])
+                except ImportError:
+                    pass # Keep original size if resize tools are completely unavailable
+            
+            if video_asset.duration < duration:
+                loops = int(np.ceil(duration / video_asset.duration))
+                video_asset = video_asset.loop(n=loops)
+            bg_clip = video_asset.subclip(0, duration)
         except Exception:
-            bg_clip = ColorClip(size=target_size, color=(2, 44, 34)).set_duration(duration)
-    else:
-        # Emerald green fallback canvas ensuring zero application crashes
-        bg_clip = ColorClip(size=target_size, color=(2, 44, 34)).set_duration(duration)
+            pass # Gracefully keep the beautiful emerald PIL background if video fails
 
     # 3. Dynamic Subtitle Segmenter
     sentences = [s.strip() for s in script['narration'].replace('.', '.|').replace('!', '!|').replace('?', '?|').split('|') if s.strip()]
