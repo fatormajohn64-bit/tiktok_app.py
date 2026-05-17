@@ -1,12 +1,11 @@
 streamlit
-groq
 moviepy==1.0.3
-gtts
-numpy
-Pillow
 imageio
 imageio-ffmpeg
-proglog
+gtts
+groq
+numpy
+pillow==9.5.0
 decorator
-tqdm
+proglog
 requests
